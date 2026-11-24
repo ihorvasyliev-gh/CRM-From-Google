@@ -134,7 +134,6 @@ export function useDocumentSetup() {
         onSuccess: tpl => {
             setTemplates(prev => prev.filter(t => t.id !== tpl.id));
             // The database drops the template from course presets (migration 73)
-            queryClient.invalidateQueries({ queryKey: ['doc_courses'] });
             queryClient.invalidateQueries({ queryKey: ['courses'] });
         },
     });
@@ -160,7 +159,6 @@ export function useDocumentSetup() {
             saveCourseTemplatePreset(courseId, templateIds),
         onSuccess: (templateIds, { courseId }) => {
             const patch = (old?: Course[]) => old?.map(c => c.id === courseId ? { ...c, template_ids: templateIds } : c);
-            queryClient.setQueryData<Course[]>(['doc_courses'], patch);
             queryClient.setQueryData<Course[]>(['courses'], patch);
         },
     });

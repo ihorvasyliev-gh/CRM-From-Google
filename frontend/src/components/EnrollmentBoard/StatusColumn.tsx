@@ -1,4 +1,5 @@
 import { memo, useState, useCallback, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Check, Copy, Loader2, ListChecks, ChevronLeft, ChevronRight, Calendar, Star, Timer, AlertTriangle } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
@@ -12,16 +13,20 @@ import { todayISO } from '../../lib/dateUtils';
 import { normalizeEmail } from '../../lib/emailOptOut';
 import type { InviteFilter } from '../../lib/inviteDeadline';
 import type { SortOrder } from './boardSort';
-import { computeColumnGroups, pickTopN } from './boardFilters';
+import { computeColumnGroups, pickTopN, type ColumnGroup } from './boardFilters';
 
-// Cards rendered at first, and added each time the list is scrolled near its end. A column shows
-// about six cards at a time; rendering 50 in each of the four columns at once (some 11,000 DOM
-// nodes) blocked a phone for well over a second when the board opened.
+// Cards rendered at first for short lists; once a column exceeds VIRTUALIZE_THRESHOLD,
+// @tanstack/react-virtual recycles DOM nodes so 500+ card columns stay smooth.
 const INITIAL_CARDS = 16;
 const MORE_CARDS = 32;
 /** Cards slide into place while at most this many are rendered in the column */
 const ANIMATED_CARDS_MAX = 48;
+const VIRTUALIZE_THRESHOLD = 48;
 const EMPTY_OPTED_OUT: ReadonlySet<string> = new Set();
+
+type VirtualRow =
+    | { kind: 'header'; key: string; group: ColumnGroup }
+    | { kind: 'card'; key: string; enrollment: EnrollmentRow };
 
 interface StatusColumnProps {
     status: string;
@@ -194,9 +199,10 @@ const StatusColumn = function StatusColumn({
     const [visibleCount, setVisibleCount] = useState(INITIAL_CARDS);
     const sentinelRef = useRef<HTMLDivElement | null>(null);
     const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+    const virtualized = !collapsed && items.length > VIRTUALIZE_THRESHOLD;
     // Cards slide into place when others leave or arrive; above a few dozen rendered cards
-    // measuring them all on every change would cost more than it shows
-    const animateCards = useCardsAnimation<HTMLDivElement>(!collapsed && Math.min(items.length, visibleCount) <= ANIMATED_CARDS_MAX, filters);
+    // virtualization takes over so the DOM stays flat
+    const animateCards = useCardsAnimation<HTMLDivElement>(!collapsed && !virtualized && Math.min(items.length, visibleCount) <= ANIMATED_CARDS_MAX, filters);
     // Cards brought in by other filters or a new search don't drop in either: only the ones that
     // arrive (moved here, new) do
     const [cardsFilters, setCardsFilters] = useState(filters);
@@ -209,9 +215,9 @@ const StatusColumn = function StatusColumn({
         animateCards(node);
     }, [animateCards]);
 
-    // Intersection Observer for reliable infinite scroll
+    // Intersection Observer for short non-virtualized columns
     useEffect(() => {
-        if (collapsed) return;
+        if (collapsed || virtualized) return;
         const sentinel = sentinelRef.current;
         if (!sentinel) return;
 
@@ -234,7 +240,7 @@ const StatusColumn = function StatusColumn({
 
         observer.observe(sentinel);
         return () => observer.disconnect();
-    }, [items.length, visibleCount, collapsed]);
+    }, [items.length, visibleCount, collapsed, virtualized]);
 
     // Reset the lazy-render window when the list changes (filters, search) — but not while the user
     // is scrolled down: realtime updates also produce a new array and would otherwise yank cards away.
@@ -245,6 +251,7 @@ const StatusColumn = function StatusColumn({
     }, [items]);
 
     const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+        if (virtualized) return;
         const el = e.currentTarget;
         if (el.scrollHeight - el.scrollTop - el.clientHeight < 600) {
             setVisibleCount(prev => {
@@ -252,13 +259,37 @@ const StatusColumn = function StatusColumn({
                 return prev + MORE_CARDS;
             });
         }
-    }, [items.length]);
+    }, [items.length, virtualized]);
 
     const today = todayISO();
     const groups = useMemo(
         () => computeColumnGroups(items, status, sortOrder, today),
         [items, status, sortOrder, today],
     );
+
+    const virtualRows = useMemo<VirtualRow[]>(() => {
+        if (!virtualized) return [];
+        if (!groups) return items.map(enrollment => ({ kind: 'card', key: enrollment.id, enrollment }));
+        const rows: VirtualRow[] = [];
+        for (const group of groups) {
+            rows.push({ kind: 'header', key: `hdr:${group.key}`, group });
+            for (const enrollment of group.items) {
+                rows.push({ kind: 'card', key: enrollment.id, enrollment });
+            }
+        }
+        return rows;
+    }, [virtualized, groups, items]);
+
+    // @tanstack/react-virtual intentionally returns non-memoizable imperative getters
+    // eslint-disable-next-line react-hooks/incompatible-library
+    const rowVirtualizer = useVirtualizer({
+        count: virtualRows.length,
+        getScrollElement: () => scrollContainerRef.current,
+        estimateSize: (index) => (virtualRows[index]?.kind === 'header' ? 34 : 122),
+        getItemKey: (index) => virtualRows[index]?.key ?? index,
+        overscan: 8,
+        gap: 6,
+    });
 
     if (!cfg) return null;
 
@@ -327,12 +358,101 @@ const StatusColumn = function StatusColumn({
                 emailOptedOut={!!emailNorm && optedOutEmails.has(emailNorm)}
                 onOpenApprovals={onOpenApprovals}
                 session={sessionForEnrollment(enrollment, sessions)}
-                dropIn={!refiltered}
+                dropIn={!refiltered && !virtualized}
             />
         );
     };
 
+    const renderGroupHeader = (group: ColumnGroup) => {
+        const groupAllSelected = group.items.every(e => selectedIds.has(e.id));
+        const groupSomeSelected = group.items.some(e => selectedIds.has(e.id));
+        const capText = status === 'confirmed' && group.maxCapacity != null
+            ? `${group.items.length}/${group.maxCapacity}`
+            : `${group.items.length}`;
+        const isOverCap = status === 'confirmed' && group.maxCapacity != null && group.items.length > group.maxCapacity;
+
+        return (
+            <div
+                data-testid={`date-group-${group.key}`}
+                className={`flex items-center justify-between gap-1.5 px-2 py-1 rounded-lg text-[11px] font-semibold border ${
+                    group.kind === 'priority'
+                        ? 'bg-warning/10 border-warning/25 text-status-requested'
+                        : group.isPast
+                            ? 'bg-amber-500/10 border-amber-500/30 text-status-requested'
+                            : 'bg-surface-elevated/80 border-border-subtle/80 text-muted'
+                }`}
+            >
+                <div className="flex items-center gap-1.5 min-w-0">
+                    {group.kind === 'priority' ? (
+                        <Star size={11} fill="currentColor" className="shrink-0" />
+                    ) : group.isPast ? (
+                        <AlertTriangle size={11} className="shrink-0" />
+                    ) : (
+                        <Calendar size={11} className="shrink-0" />
+                    )}
+                    <span className="truncate">
+                        {group.isPast ? `Past · ${group.label}` : group.label}
+                    </span>
+                    <span className={`font-mono text-[10px] px-1.5 py-px rounded-full ${
+                        isOverCap ? 'bg-red-500/15 text-status-rejected font-bold' : 'bg-background/70 text-primary'
+                    }`}>
+                        {capText}
+                    </span>
+                </div>
+                <button
+                    type="button"
+                    onClick={() => selectAllInList(group.items)}
+                    aria-label={`${groupAllSelected ? 'Deselect' : 'Select'} all ${group.items.length} in ${group.label}`}
+                    title={`${groupAllSelected ? 'Deselect' : 'Select'} all ${group.items.length} in ${group.label}`}
+                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold transition-colors cursor-pointer shrink-0 ${
+                        groupAllSelected
+                            ? 'bg-brand-500 text-white'
+                            : groupSomeSelected
+                                ? 'bg-brand-500/20 text-brand-600 dark:text-brand-400'
+                                : 'hover:bg-surface text-muted hover:text-primary'
+                    }`}
+                >
+                    {groupAllSelected ? <Check size={10} strokeWidth={3} /> : null}
+                    <span>{groupAllSelected ? 'Selected' : 'Select'}</span>
+                </button>
+            </div>
+        );
+    };
+
     const renderCardsList = () => {
+        if (virtualized) {
+            const vItems = rowVirtualizer.getVirtualItems();
+            if (vItems.length > 0) {
+                return (
+                    <div
+                        data-testid={`virtual-list-${status}`}
+                        style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative', width: '100%' }}
+                    >
+                        {vItems.map(virtualItem => {
+                            const row = virtualRows[virtualItem.index];
+                            if (!row) return null;
+                            return (
+                                <div
+                                    key={virtualItem.key}
+                                    data-index={virtualItem.index}
+                                    ref={rowVirtualizer.measureElement}
+                                    style={{
+                                        position: 'absolute',
+                                        top: 0,
+                                        left: 0,
+                                        width: '100%',
+                                        transform: `translateY(${virtualItem.start}px)`,
+                                    }}
+                                >
+                                    {row.kind === 'header' ? renderGroupHeader(row.group) : renderCard(row.enrollment)}
+                                </div>
+                            );
+                        })}
+                    </div>
+                );
+            }
+        }
+
         if (!groups) {
             return items.slice(0, visibleCount).map(renderCard);
         }
@@ -343,59 +463,9 @@ const StatusColumn = function StatusColumn({
             if (budget <= 0) break;
             const visibleInGroup = group.items.slice(0, budget);
             budget -= visibleInGroup.length;
-            const groupAllSelected = group.items.every(e => selectedIds.has(e.id));
-            const groupSomeSelected = group.items.some(e => selectedIds.has(e.id));
-            const capText = status === 'confirmed' && group.maxCapacity != null
-                ? `${group.items.length}/${group.maxCapacity}`
-                : `${group.items.length}`;
-            const isOverCap = status === 'confirmed' && group.maxCapacity != null && group.items.length > group.maxCapacity;
-
             nodes.push(
                 <div key={group.key} className="space-y-1.5">
-                    <div
-                        data-testid={`date-group-${group.key}`}
-                        className={`flex items-center justify-between gap-1.5 px-2 py-1 rounded-lg text-[11px] font-semibold border ${
-                            group.kind === 'priority'
-                                ? 'bg-warning/10 border-warning/25 text-status-requested'
-                                : group.isPast
-                                    ? 'bg-amber-500/10 border-amber-500/30 text-status-requested'
-                                    : 'bg-surface-elevated/80 border-border-subtle/80 text-muted'
-                        }`}
-                    >
-                        <div className="flex items-center gap-1.5 min-w-0">
-                            {group.kind === 'priority' ? (
-                                <Star size={11} fill="currentColor" className="shrink-0" />
-                            ) : group.isPast ? (
-                                <AlertTriangle size={11} className="shrink-0" />
-                            ) : (
-                                <Calendar size={11} className="shrink-0" />
-                            )}
-                            <span className="truncate">
-                                {group.isPast ? `Past · ${group.label}` : group.label}
-                            </span>
-                            <span className={`font-mono text-[10px] px-1.5 py-px rounded-full ${
-                                isOverCap ? 'bg-red-500/15 text-status-rejected font-bold' : 'bg-background/70 text-primary'
-                            }`}>
-                                {capText}
-                            </span>
-                        </div>
-                        <button
-                            type="button"
-                            onClick={() => selectAllInList(group.items)}
-                            aria-label={`${groupAllSelected ? 'Deselect' : 'Select'} all ${group.items.length} in ${group.label}`}
-                            title={`${groupAllSelected ? 'Deselect' : 'Select'} all ${group.items.length} in ${group.label}`}
-                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold transition-colors cursor-pointer shrink-0 ${
-                                groupAllSelected
-                                    ? 'bg-brand-500 text-white'
-                                    : groupSomeSelected
-                                        ? 'bg-brand-500/20 text-brand-600 dark:text-brand-400'
-                                        : 'hover:bg-surface text-muted hover:text-primary'
-                            }`}
-                        >
-                            {groupAllSelected ? <Check size={10} strokeWidth={3} /> : null}
-                            <span>{groupAllSelected ? 'Selected' : 'Select'}</span>
-                        </button>
-                    </div>
+                    {renderGroupHeader(group)}
                     {visibleInGroup.map(renderCard)}
                 </div>
             );
@@ -651,8 +721,8 @@ const StatusColumn = function StatusColumn({
                         </div>
                     )}
                     {renderCardsList()}
-                    {/* Sentinel for IntersectionObserver lazy load */}
-                    {visibleCount < items.length && (
+                    {/* Sentinel for IntersectionObserver lazy load (short non-virtualized columns) */}
+                    {!virtualized && visibleCount < items.length && (
                         <div ref={sentinelRef} className="py-3 flex items-center justify-center">
                             <div className="flex gap-1">
                                 <div className="w-1.5 h-1.5 rounded-full bg-brand-400/60 animate-bounce" style={{ animationDelay: '0ms' }} />

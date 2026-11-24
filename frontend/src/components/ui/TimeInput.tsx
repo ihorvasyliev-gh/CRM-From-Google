@@ -211,6 +211,12 @@ export function TimeInput({ value, onChange, id, ariaLabel, placeholder = '--:--
                                 onMouseDown={e => e.preventDefault()}
                                 onMouseEnter={() => setActive(i)}
                                 onClick={() => pick(slot)}
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        pick(slot);
+                                    }
+                                }}
                                 className={`flex items-center justify-between gap-3 px-2.5 py-1.5 rounded-lg text-sm tabular-nums cursor-pointer select-none ${
                                     i === active ? 'bg-brand-500/15' : ''
                                 } ${selected ? 'font-bold text-brand-500' : fullHour ? 'text-primary font-medium' : 'text-muted'}`}

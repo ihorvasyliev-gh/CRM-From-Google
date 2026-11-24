@@ -89,8 +89,8 @@ export default function ConfirmDateModal({ target, date, onDateChange, busy, onC
                 )}
 
                 {savedDates.length > 0 && (
-                    <div className="mb-4">
-                        <label className="block text-xs font-medium text-muted mb-2">Saved Course Dates</label>
+                    <div className="mb-4" role="group" aria-labelledby="confirm-saved-dates-label">
+                        <p id="confirm-saved-dates-label" className="block text-xs font-medium text-muted mb-2">Saved Course Dates</p>
                         <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                             {savedDates.map(d => {
                                 const stats = getDateStats(d);

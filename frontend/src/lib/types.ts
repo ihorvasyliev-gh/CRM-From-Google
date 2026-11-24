@@ -25,6 +25,8 @@ export interface Course {
     template_ids?: string[] | null;
     /** This course's own text for the course card in invitation/reminder emails */
     email_templates?: CourseEmailInfo | null;
+    /** Set when archived (migration 100): hidden from active pickers while keeping history intact */
+    archived_at?: string | null;
     created_at: string;
 }
 

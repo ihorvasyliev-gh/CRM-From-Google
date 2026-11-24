@@ -4,8 +4,10 @@ import webpush from 'npm:web-push@3.6.7';
 // A confirmation older than this is not announced again
 const RECENT_CONFIRMATION_MS = 10 * 60 * 1000;
 
+const allowedOrigin = Deno.env.get('ALLOWED_ORIGIN') || '*';
+
 const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': allowedOrigin,
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
@@ -51,8 +53,25 @@ Deno.serve(async (req) => {
             }
         }
 
-        // 2. Parse request payload (should contain enrollment_id)
-        const { enrollment_id } = await req.json();
+        // 2. Parse request payload safely (should contain enrollment_id)
+        let body: Record<string, unknown>;
+        try {
+            const parsed = await req.json();
+            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+                return new Response(JSON.stringify({ error: 'Invalid JSON payload' }), {
+                    status: 400,
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                });
+            }
+            body = parsed as Record<string, unknown>;
+        } catch {
+            return new Response(JSON.stringify({ error: 'Invalid JSON payload' }), {
+                status: 400,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+        }
+
+        const enrollment_id = typeof body.enrollment_id === 'string' ? body.enrollment_id.trim() : '';
         if (!enrollment_id) {
             return new Response(JSON.stringify({ error: 'Missing enrollment_id' }), {
                 status: 400,
@@ -74,7 +93,11 @@ Deno.serve(async (req) => {
             .single();
 
         if (enrollmentError || !enrollment) {
-            throw new Error(`Enrollment not found: ${enrollmentError?.message || ''}`);
+            console.warn(`[Edge Function] Enrollment not found (${enrollment_id}):`, enrollmentError?.message || '');
+            return new Response(JSON.stringify({ error: 'Enrollment not found' }), {
+                status: 404,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
         }
 
         // The anon key is public, so anyone can call this function: only notify about
@@ -87,51 +110,87 @@ Deno.serve(async (req) => {
             });
         }
 
-        const student = (enrollment as any).students;
-        const course = (enrollment as any).courses;
-        const studentName = student ? `${student.first_name} ${student.last_name}` : 'A student';
-        const courseName = course?.name || 'a course';
-
-        // 4. Fetch push subscriptions of admins only: viewers must not receive student names
-        const { data: allSubscriptions, error: subsError } = await supabase
-            .from('user_push_subscriptions')
-            .select('*');
-
-        if (subsError) {
-            throw new Error(`Failed to fetch subscriptions: ${subsError.message}`);
-        }
-
-        const userIds = [...new Set((allSubscriptions || []).map((sub) => sub.user_id as string))];
-        const adminIds = new Set<string>();
-        await Promise.all(userIds.map(async (id) => {
-            const { data, error } = await supabase.auth.admin.getUserById(id);
-            // Same rule as is_app_admin(): anyone who is not a viewer
-            if (!error && data?.user && data.user.app_metadata?.role !== 'viewer') adminIds.add(id);
-        }));
-        const subscriptions = (allSubscriptions || []).filter((sub) => adminIds.has(sub.user_id));
-
-        if (!subscriptions || subscriptions.length === 0) {
-            return new Response(JSON.stringify({ message: 'No push subscriptions found to notify.' }), {
-                status: 200,
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            });
-        }
-
-        // 5. Configure VAPID details for signing push requests
+        // 4. Configure VAPID details before claiming so misconfiguration never suppresses future retries
         const publicVapidKey = Deno.env.get('VAPID_PUBLIC_KEY');
         const privateVapidKey = Deno.env.get('VAPID_PRIVATE_KEY');
+        const vapidSubject = Deno.env.get('VAPID_SUBJECT') || 'mailto:noreply@corkcitypartnership.ie';
 
         if (!publicVapidKey || !privateVapidKey) {
             throw new Error('VAPID public or private key is missing in environmental variables.');
         }
 
         webpush.setVapidDetails(
-            'mailto:admin@example.com', // Replace with admin email in production if needed
+            vapidSubject,
             publicVapidKey,
             privateVapidKey
         );
 
-        // 6. Build the push payload JSON
+        // 5. Atomically claim this enrollment notification so concurrent or replayed calls
+        //    cannot send duplicate push alerts (with graceful fallback if migration 98 is not yet applied).
+        const { data: claimed, error: claimError } = await supabase
+            .from('enrollments')
+            .update({ confirmed_push_sent_at: new Date().toISOString() })
+            .eq('id', enrollment_id)
+            .is('confirmed_push_sent_at', null)
+            .select('id');
+
+        if (claimError) {
+            const isMissingColumn =
+                claimError.code === '42703' ||
+                claimError.code === 'PGRST204' ||
+                /confirmed_push_sent_at/i.test(claimError.message || '');
+            if (!isMissingColumn) {
+                throw new Error(`Failed to claim enrollment notification: ${claimError.message}`);
+            }
+            console.warn('[Edge Function] confirmed_push_sent_at column missing (migration 98 not yet applied); skipping deduplication.');
+        } else if (!claimed || claimed.length === 0) {
+            return new Response(JSON.stringify({ message: 'Push notification already sent for this enrollment.' }), {
+                status: 200,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+        }
+
+        const student = (enrollment as any).students;
+        const course = (enrollment as any).courses;
+        const studentName = student ? `${student.first_name} ${student.last_name}` : 'A student';
+        const courseName = course?.name || 'a course';
+
+        // 6. Fetch push subscriptions of admins only (positive allowlist matching is_app_admin())
+        const { data: allSubscriptions, error: subsError } = await supabase
+            .from('user_push_subscriptions')
+            .select('id, user_id, endpoint, p256dh, auth');
+
+        if (subsError) {
+            throw new Error(`Failed to fetch subscriptions: ${subsError.message}`);
+        }
+
+        if (!allSubscriptions || allSubscriptions.length === 0) {
+            return new Response(JSON.stringify({ message: 'No push subscriptions found to notify.' }), {
+                status: 200,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+        }
+
+        const userIds = [...new Set(allSubscriptions.map((sub) => sub.user_id as string).filter(Boolean))];
+        const adminIds = new Set<string>();
+        await Promise.all(userIds.map(async (id) => {
+            const { data, error } = await supabase.auth.admin.getUserById(id);
+            // Positive allowlist matching is_app_admin(): only explicit 'admin' or legacy missing role
+            const role = data?.user?.app_metadata?.role;
+            if (!error && data?.user && (!role || role === 'admin')) {
+                adminIds.add(id);
+            }
+        }));
+        const subscriptions = allSubscriptions.filter((sub) => adminIds.has(sub.user_id));
+
+        if (subscriptions.length === 0) {
+            return new Response(JSON.stringify({ message: 'No admin push subscriptions found to notify.' }), {
+                status: 200,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+        }
+
+        // 7. Build the push payload JSON
         const payload = JSON.stringify({
             title: '✅ Enrollment Confirmed',
             body: `${studentName} confirmed for ${courseName}`,
@@ -140,7 +199,7 @@ Deno.serve(async (req) => {
             requireInteraction: true
         });
 
-        // 7. Deliver notifications to all subscribers
+        // 8. Deliver notifications to all admin subscribers
         const sendPromises = subscriptions.map(async (sub) => {
             const pushSubscription = {
                 endpoint: sub.endpoint,
@@ -175,7 +234,7 @@ Deno.serve(async (req) => {
 
     } catch (error: any) {
         console.error('[Edge Function Error]:', error);
-        return new Response(JSON.stringify({ error: error.message }), {
+        return new Response(JSON.stringify({ error: 'Internal server error' }), {
             status: 500,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });

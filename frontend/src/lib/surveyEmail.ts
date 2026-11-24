@@ -1,5 +1,6 @@
 // Survey email helpers shared by the Outcomes graduates table and the External lists.
 import { fetchOptedOutEmails, partitionByOptOut, skippedNote } from './emailOptOut';
+import { openMailtoOrHelper } from './mailtoHelper';
 
 import type { ShowToast, ToastData } from './toast';
 
@@ -71,14 +72,26 @@ export async function copySurveyAndOpenMailto({
     }
 
     const note = skippedNoteText ?? skippedNote(skipped);
-    showToast(
-        copied
-            ? `Status requests sent to ${emails.length} ${noun}(s). Template copied!${note}`
-            : `Marked ${emails.length} ${noun}(s) as pending, but the email template could not be copied${note}`,
-        copied ? 'success' : 'error',
-        toastOptions,
-    );
+    const { openedDirectly } = openMailtoOrHelper({
+        emails,
+        subject,
+        html,
+        title: subject,
+    });
 
-    const bcc = [...new Set(emails.filter(Boolean))].map(encodeURIComponent).join(',');
-    window.location.href = `mailto:?bcc=${bcc}&subject=${encodeURIComponent(subject)}`;
+    if (!openedDirectly) {
+        showToast(
+            `Too many recipients for a single mailto link — opened batch & webmail helper${note}`,
+            'info',
+            toastOptions,
+        );
+    } else {
+        showToast(
+            copied
+                ? `Status requests sent to ${emails.length} ${noun}(s). Template copied!${note}`
+                : `Marked ${emails.length} ${noun}(s) as pending, but the email template could not be copied${note}`,
+            copied ? 'success' : 'error',
+            toastOptions,
+        );
+    }
 }

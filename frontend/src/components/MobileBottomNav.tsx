@@ -14,7 +14,8 @@ import {
     X,
     Search,
     ListChecks,
-    Home
+    Home,
+    CheckSquare
 } from 'lucide-react';
 
 interface MobileBottomNavProps {
@@ -30,6 +31,10 @@ interface MobileBottomNavProps {
     userEmail?: string;
     /** Admins: course completion requests waiting for approval (badge on the Dashboard tab) */
     pendingApprovalsCount?: number;
+    /** Admins: open team to-do count (badge on the To-Do tab) */
+    todoOpenCount?: number;
+    /** Admins: overdue team to-do count (turns the To-Do badge red) */
+    todoOverdueCount?: number;
 }
 
 export default function MobileBottomNav({
@@ -43,7 +48,9 @@ export default function MobileBottomNav({
     onOpenCommandPalette,
     onSignOut,
     userEmail,
-    pendingApprovalsCount = 0
+    pendingApprovalsCount = 0,
+    todoOpenCount = 0,
+    todoOverdueCount = 0,
 }: MobileBottomNavProps) {
     const [moreOpen, setMoreOpen] = useState(false);
     const closeMore = () => setMoreOpen(false);
@@ -181,17 +188,25 @@ export default function MobileBottomNav({
     }
 
     // Every other section and tool is in the burger menu (the sidebar drawer); the names match the sidebar's
+    const todoBadgeCount = Math.max(todoOpenCount, todoOverdueCount);
+    const todoAriaLabel =
+        todoBadgeCount > 0
+            ? todoOverdueCount > 0
+                ? `To-Do, ${todoBadgeCount} open, ${todoOverdueCount} overdue`
+                : `To-Do, ${todoBadgeCount} open`
+            : undefined;
+
     return (
         <nav 
             aria-label="Mobile Navigation"
-            className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface/97 border-t border-border-subtle/80 px-2 py-1 pb-[max(env(safe-area-inset-bottom),0.375rem)] shadow-[0_-4px_24px_rgba(0,0,0,0.1)] transition-colors"
+            className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface/97 border-t border-border-subtle/80 px-1.5 py-1 pb-[max(env(safe-area-inset-bottom),0.375rem)] shadow-[0_-4px_24px_rgba(0,0,0,0.1)] transition-colors"
         >
             <div className="flex items-center justify-around max-w-lg mx-auto">
                 <button
                     onClick={() => onNavigate('dashboard')}
                     aria-current={activeTab === 'dashboard' ? 'page' : undefined}
                     aria-label={pendingApprovalsCount > 0 ? `Dashboard, ${pendingApprovalsCount} approval${pendingApprovalsCount > 1 ? 's' : ''} waiting` : undefined}
-                    className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all duration-200 min-w-[56px] ${
+                    className={`flex flex-col items-center justify-center py-1 px-1.5 rounded-xl transition-all duration-200 min-w-[52px] ${
                         activeTab === 'dashboard'
                             ? 'text-brand-600 dark:text-brand-400 font-bold'
                             : 'text-muted hover:text-primary'
@@ -214,7 +229,7 @@ export default function MobileBottomNav({
                 <button
                     onClick={() => onNavigate('enrollments')}
                     aria-current={activeTab === 'enrollments' ? 'page' : undefined}
-                    className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all duration-200 min-w-[56px] relative ${
+                    className={`flex flex-col items-center justify-center py-1 px-1.5 rounded-xl transition-all duration-200 min-w-[52px] relative ${
                         activeTab === 'enrollments'
                             ? 'text-brand-600 dark:text-brand-400 font-bold'
                             : 'text-muted hover:text-primary'
@@ -229,7 +244,7 @@ export default function MobileBottomNav({
                 <button
                     onClick={() => onNavigate('students')}
                     aria-current={activeTab === 'students' ? 'page' : undefined}
-                    className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all duration-200 min-w-[56px] ${
+                    className={`flex flex-col items-center justify-center py-1 px-1.5 rounded-xl transition-all duration-200 min-w-[52px] ${
                         activeTab === 'students'
                             ? 'text-brand-600 dark:text-brand-400 font-bold'
                             : 'text-muted hover:text-primary'
@@ -244,7 +259,7 @@ export default function MobileBottomNav({
                 <button
                     onClick={() => onNavigate('courses')}
                     aria-current={activeTab === 'courses' ? 'page' : undefined}
-                    className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all duration-200 min-w-[56px] ${
+                    className={`flex flex-col items-center justify-center py-1 px-1.5 rounded-xl transition-all duration-200 min-w-[52px] ${
                         activeTab === 'courses'
                             ? 'text-brand-600 dark:text-brand-400 font-bold'
                             : 'text-muted hover:text-primary'
@@ -254,6 +269,32 @@ export default function MobileBottomNav({
                         <BookOpen size={18} />
                     </div>
                     <span className="text-xs tracking-tight mt-0.5">Courses</span>
+                </button>
+
+                <button
+                    onClick={() => onNavigate('todos')}
+                    aria-current={activeTab === 'todos' ? 'page' : undefined}
+                    aria-label={todoAriaLabel}
+                    className={`flex flex-col items-center justify-center py-1 px-1.5 rounded-xl transition-all duration-200 min-w-[52px] ${
+                        activeTab === 'todos'
+                            ? 'text-brand-600 dark:text-brand-400 font-bold'
+                            : 'text-muted hover:text-primary'
+                    }`}
+                >
+                    <div className={`relative p-1 rounded-lg transition-transform ${activeTab === 'todos' ? 'bg-brand-500/10 scale-110' : ''}`}>
+                        <CheckSquare size={18} />
+                        {todoBadgeCount > 0 && (
+                            <span
+                                aria-hidden
+                                className={`absolute -top-1 -right-2 min-w-[16px] h-4 px-1 rounded-full text-white text-[10px] font-bold leading-4 text-center tabular-nums ${
+                                    todoOverdueCount > 0 ? 'bg-danger' : 'bg-brand-500'
+                                }`}
+                            >
+                                {todoBadgeCount > 99 ? '99+' : todoBadgeCount}
+                            </span>
+                        )}
+                    </div>
+                    <span className="text-xs tracking-tight mt-0.5">To-Do</span>
                 </button>
             </div>
         </nav>

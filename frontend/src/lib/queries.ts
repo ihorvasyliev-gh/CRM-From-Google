@@ -62,9 +62,22 @@ export async function fetchEnrollmentsByIds(ids: string[]): Promise<EnrollmentWi
 
 /** Every enrollment of these students, with the same fields as the cached list. */
 export async function fetchEnrollmentsByStudentIds(studentIds: string[]): Promise<EnrollmentWithRelations[]> {
-    const { data, error } = await supabase.from('enrollments').select(ENROLLMENT_SELECT).in('student_id', studentIds);
-    if (error) throw error;
-    return (data || []) as EnrollmentWithRelations[];
+    if (studentIds.length === 0) return [];
+    const CHUNK = 150;
+    const chunks = Array.from({ length: Math.ceil(studentIds.length / CHUNK) }, (_, i) => studentIds.slice(i * CHUNK, (i + 1) * CHUNK));
+    const results = await Promise.all(chunks.map(chunk =>
+        fetchAllPages<EnrollmentWithRelations>((from, to) => {
+            const q = supabase
+                .from('enrollments')
+                .select(ENROLLMENT_SELECT)
+                .in('student_id', chunk)
+                .order('id') as unknown as {
+                    range?: (f: number, t: number) => PromiseLike<{ data: EnrollmentWithRelations[] | null; error: unknown }>;
+                } & PromiseLike<{ data: EnrollmentWithRelations[] | null; error: unknown }>;
+            return typeof q?.range === 'function' ? q.range(from, to) : q;
+        })
+    ));
+    return results.flat();
 }
 
 type EnrollmentStudent = NonNullable<EnrollmentWithRelations['students']>;

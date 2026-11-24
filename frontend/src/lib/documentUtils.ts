@@ -1,7 +1,7 @@
 // Document generation: templates and settings in Supabase, generation history, and the archive run.
 // The rendering itself lives in documentRender.ts and runs in a Web Worker (documentJob.ts).
 import { supabase } from './supabase';
-import { fetchEnrollmentsByIds } from './queries';
+import { fetchAllPages, fetchEnrollmentsByIds } from './queries';
 import {
     cleanVariant, fullName, templateLabel,
     type DocumentGenerationRecord, type DocumentTemplate, type Enrollment, type TemplateVariable,
@@ -553,19 +553,32 @@ export async function fetchDocContext(people: EnrollmentWithRelations[]): Promis
     const [sessions, staffName] = await Promise.all([
         (async (): Promise<SessionMap> => {
             if (!courseIds.length) return {};
-            const { data, error } = await Promise.resolve()
-                .then(() => supabase.from('invite_dates').select(SESSION_COLUMNS).in('course_id', courseIds))
-                .then(res => res ?? { data: null, error: null }, (err: unknown) => ({ data: null, error: err }));
-            if (error) {
+            try {
+                const CHUNK = 100;
+                const chunks = Array.from({ length: Math.ceil(courseIds.length / CHUNK) }, (_, i) => courseIds.slice(i * CHUNK, (i + 1) * CHUNK));
+                const pages = await Promise.all(chunks.map(chunk =>
+                    fetchAllPages<Record<string, unknown>>((from, to) => {
+                        const q = supabase
+                            .from('invite_dates')
+                            .select(SESSION_COLUMNS)
+                            .in('course_id', chunk)
+                            .order('course_id')
+                            .order('invite_date') as unknown as {
+                                range?: (f: number, t: number) => PromiseLike<{ data: Record<string, unknown>[] | null; error: unknown }>;
+                            } & PromiseLike<{ data: Record<string, unknown>[] | null; error: unknown }>;
+                        return typeof q?.range === 'function' ? q.range(from, to) : q;
+                    })
+                ));
+                const map: SessionMap = {};
+                for (const row of pages.flat()) {
+                    const session = sessionFromRow(row as Parameters<typeof sessionFromRow>[0]);
+                    if (session && typeof row.course_id === 'string') map[courseDateKey(row.course_id, session.date)] = session;
+                }
+                return map;
+            } catch (error) {
                 console.warn('Course date schedules unavailable for documents:', error);
                 return {};
             }
-            const map: SessionMap = {};
-            for (const row of data || []) {
-                const session = sessionFromRow(row);
-                if (session && typeof row.course_id === 'string') map[courseDateKey(row.course_id, session.date)] = session;
-            }
-            return map;
         })(),
         // No name is no reason to stop: {staffName} then prints blank
         Promise.resolve().then(() => supabase.auth.getSession()).then(({ data }) => staffNameOf(data.session?.user), () => ''),

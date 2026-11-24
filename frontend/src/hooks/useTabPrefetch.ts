@@ -14,7 +14,7 @@ const TAB_PREFETCH: Record<string, { queries?: { queryKey: string[]; queryFn: ()
     enrollments: { queries: [enrollmentsQuery] },
     todos: { queries: [{ queryKey: [...TODOS_KEY], queryFn: fetchAdminTodos }], chunk: () => import('../components/Todos') },
     outcomes: { queries: [{ queryKey: ['outcomes_graduates'], queryFn: fetchGraduatesFn }], chunk: () => import('../components/OutcomesList') },
-    documents: { queries: [enrollmentsQuery, { queryKey: ['doc_courses'], queryFn: fetchCourses }], chunk: () => import('../components/DocumentGenerator') },
+    documents: { queries: [enrollmentsQuery, { queryKey: ['courses'], queryFn: fetchCourses }], chunk: () => import('../components/DocumentGenerator') },
     analytics: { queries: [enrollmentsQuery, { queryKey: ['analytics_employment_statuses_v1'], queryFn: fetchEmploymentStatuses }], chunk: () => import('../components/Analytics') },
     settings: { chunk: () => import('../components/Settings') },
     'pdf-forms': { chunk: () => import('../components/PdfForms') },
@@ -83,6 +83,8 @@ export function useTabPrefetch(shell: 'admin' | 'viewer' | null, initialTab?: st
             import('../components/ViewerHome');
             import('../components/ViewerStudentsDirectory');
             import('../components/ViewerCourses');
+            import('../components/OutreachLists');
+            import('../components/PdfForms');
             import('../components/StudentDetailDrawer');
             import('../components/CommandPalette');
             import('../components/KeyboardShortcutsModal');
@@ -117,11 +119,12 @@ export function useTabPrefetch(shell: 'admin' | 'viewer' | null, initialTab?: st
             () => import('../components/Todos'),
             () => import('../components/CourseList'),
             () => import('../components/OutcomesList'),
-            () => import('../components/StudentDetailDrawer'),
             ...(slow ? [] : [
                 () => import('../components/Settings'),
                 () => import('../components/Analytics'),
                 () => import('../components/DocumentGenerator'),
+                () => import('../components/PdfForms'),
+                () => import('../components/ChequeRequisitions'),
             ]),
         ];
         const w = window as IdleWindow;

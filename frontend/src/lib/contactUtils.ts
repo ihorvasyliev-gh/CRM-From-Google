@@ -147,3 +147,10 @@ export function formatPhoneDisplay(phone: string | null | undefined): string {
     }
     return raw;
 }
+
+/** "t12ab34" → "T12 AB34"; anything that isn't 7 letters/digits is only upper-cased */
+export function formatEircode(value: string): string {
+    const compact = value.replace(/\s+/g, '').toUpperCase();
+    if (/^[A-Z0-9]{7}$/.test(compact)) return `${compact.slice(0, 3)} ${compact.slice(3)}`;
+    return value.toUpperCase();
+}

@@ -79,10 +79,10 @@ describe('StudentDetail shows saved changes without reopening', () => {
         expect(screen.queryByText('Dunmanway, Co.Cork')).not.toBeInTheDocument();
 
         await editField('Eircode', 't12e2w2');
-        expect(await screen.findByText('T12E2W2')).toBeInTheDocument();
+        expect(await screen.findByText('T12 E2W2')).toBeInTheDocument();
         // The second edit didn't put back the address the card was opened with
         expect(screen.getByText('Cork City, Co. Cork')).toBeInTheDocument();
-        expect(onStudentUpdated).toHaveBeenLastCalledWith(expect.objectContaining({ address: 'Cork City, Co. Cork', eircode: 'T12E2W2' }));
+        expect(onStudentUpdated).toHaveBeenLastCalledWith(expect.objectContaining({ address: 'Cork City, Co. Cork', eircode: 'T12 E2W2' }));
     });
 
     it('shows a change saved elsewhere (the Edit form, another user) while it is open', async () => {

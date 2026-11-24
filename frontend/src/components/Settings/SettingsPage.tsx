@@ -87,11 +87,24 @@ export default function SettingsPage({
 
     const tabParam = searchParams.get('tab');
     const subParam = searchParams.get('sub');
-    const activeTab: SettingsTabKey = isSettingsTabKey(tabParam) ? tabParam : 'general';
-    const activeDataSubTab: DataHygieneSubTab = isDataHygieneSubTab(subParam) ? subParam : 'duplicates';
+    // Settings stays mounted in <Activity>: keep the last chosen tab in state so switching
+    // to another sidebar route (which clears ?tab= from the URL) and coming back to /settings
+    // restores the sub-tab instead of resetting to General.
+    const [storedTab, setStoredTab] = useState<SettingsTabKey>(() => (isSettingsTabKey(tabParam) ? tabParam : 'general'));
+    const [storedDataSubTab, setStoredDataSubTab] = useState<DataHygieneSubTab>(() => (isDataHygieneSubTab(subParam) ? subParam : 'duplicates'));
+    const activeTab: SettingsTabKey = isSettingsTabKey(tabParam) ? tabParam : storedTab;
+    const activeDataSubTab: DataHygieneSubTab = isDataHygieneSubTab(subParam) ? subParam : storedDataSubTab;
+
+    useEffect(() => {
+        if (isSettingsTabKey(tabParam)) setStoredTab(tabParam);
+    }, [tabParam]);
+    useEffect(() => {
+        if (isDataHygieneSubTab(subParam)) setStoredDataSubTab(subParam);
+    }, [subParam]);
 
     const handleTabChange = useCallback(
         (nextTab: SettingsTabKey) => {
+            setStoredTab(nextTab);
             setSearchParams(
                 prev => {
                     const next = new URLSearchParams(prev);
@@ -109,6 +122,8 @@ export default function SettingsPage({
 
     const handleDataSubTabChange = useCallback(
         (nextSub: DataHygieneSubTab) => {
+            setStoredTab('data');
+            setStoredDataSubTab(nextSub);
             setSearchParams(
                 prev => {
                     const next = new URLSearchParams(prev);

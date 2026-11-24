@@ -51,7 +51,6 @@ export function useRequestCompletion() {
             queryClient.invalidateQueries({ queryKey: ['viewer_courses'] });
             queryClient.invalidateQueries({ queryKey: ['viewer_course_roster'] });
             queryClient.invalidateQueries({ queryKey: ['restricted_student_detail'] });
-            queryClient.invalidateQueries({ queryKey: ['restricted_students_search'] });
             void refreshCachedEnrollments(queryClient, enrollmentIds);
         },
     });
@@ -74,10 +73,10 @@ export function useApproveCompletion() {
             queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
             queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
             queryClient.invalidateQueries({ queryKey: ['courses'] });
+            queryClient.invalidateQueries({ queryKey: ['outcomes_graduates'] });
             queryClient.invalidateQueries({ queryKey: ['viewer_courses'] });
             queryClient.invalidateQueries({ queryKey: ['viewer_course_roster'] });
             queryClient.invalidateQueries({ queryKey: ['restricted_student_detail'] });
-            queryClient.invalidateQueries({ queryKey: ['restricted_students_search'] });
         },
     });
 }
@@ -100,7 +99,6 @@ export function useRejectCompletion() {
             queryClient.invalidateQueries({ queryKey: ['viewer_courses'] });
             queryClient.invalidateQueries({ queryKey: ['viewer_course_roster'] });
             queryClient.invalidateQueries({ queryKey: ['restricted_student_detail'] });
-            queryClient.invalidateQueries({ queryKey: ['restricted_students_search'] });
         },
     });
 }

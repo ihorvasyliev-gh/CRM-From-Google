@@ -213,7 +213,6 @@ flowchart LR
         Form["📝 Registration<br/>Google Form"] --> Sheet["Form responses"]
         Sheet -->|onFormSubmit| GAS["⚙️ Code.gs"]
         GAS --> Mirror["📊 CRM Mirror sheet"]
-        Survey["📝 Employment form"] --> GAS2["⚙️ EmploymentFormSync.gs"]
     end
 
     subgraph Supabase["Supabase"]
@@ -231,7 +230,6 @@ flowchart LR
     end
 
     GAS <-->|REST upsert / mirror| DB
-    GAS2 -->|submit_employment_status| RPC
     Admin & Viewer & Outreach <-->|PostgREST| DB
     Admin & Viewer <-.->|live updates| RT
     Admin <--> ST
@@ -292,7 +290,7 @@ Roles live in Supabase `auth.users.app_metadata.role`. New sign-ups join as **vi
 | **PDF forms** | `pdf-lib` (+ `@pdf-lib/fontkit`, Arimo font), `pdfjs-dist` |
 | **Invoice OCR** | `tesseract.js` (WebAssembly, English model shipped with the app) for scanned and photographed invoices |
 | **Backend** | Supabase: PostgreSQL, Row Level Security, RPCs, Realtime, Storage, an Edge Function for web push |
-| **Automation** | Google Apps Script (form sync, CRM Mirror sheet, employment survey sync) |
+| **Automation** | Google Apps Script (registration form sync, CRM Mirror sheet) |
 | **Quality** | Vitest 5 + Testing Library (VM pool, ~20 s), ESLint 10 (zero warnings), `tsc` strict, GitHub Actions CI on every pull request |
 | **Build & hosting** | Vite 8 (Rolldown, long-lived vendor chunks), Cloudflare Pages with strict security headers and a CSP |
 | **Backups** | Nightly encrypted Supabase backup to Cloudflare R2 (GitHub Actions) |
@@ -337,9 +335,11 @@ VITE_SUPABASE_ANON_KEY=your-anon-public-key
 2. Paste [`google-apps-script/Code.gs`](google-apps-script/Code.gs).
 3. In **Project Settings → Script Properties**, add:
    - `SUPABASE_URL`: your project URL
-   - `SUPABASE_KEY`: the `service_role` key (the sync bypasses RLS, so keep it secret)
+   - `SUPABASE_KEY`: the `service_role` or `sb_secret_…` key (the sync bypasses RLS, so keep it secret)
+   - `ALERT_EMAIL` *(optional)*: email address to receive throttled error alerts when sync errors occur
 4. Reload the sheet and choose **🔄 CRM Sync → 🛠 Settings: Triggers** to install the form and hourly mirror triggers.
-5. For the employment survey, repeat with [`EmploymentFormSync.gs`](google-apps-script/EmploymentFormSync.gs) in the survey form's own project.
+
+Employment outcome responses are submitted directly through the CRM's public `/status` page; the old Google Form script is archived in [`google-apps-script/legacy/EmploymentFormSync.gs`](google-apps-script/legacy/EmploymentFormSync.gs).
 
 Large backfills run in batches and resume on their own, so they stay under Apps Script's 6-minute limit.
 
@@ -443,7 +443,8 @@ CRM-From-Google/
 │   └── functions/                 send-push-notification Edge Function
 ├── google-apps-script/
 │   ├── Code.gs                    registration form ⇄ Supabase ⇄ CRM Mirror
-│   └── EmploymentFormSync.gs      employment survey → Supabase
+│   └── legacy/
+│       └── EmploymentFormSync.gs  archived employment form sync (replaced by /status)
 ├── backups/                       backup scripts and guide
 └── .github/workflows/             CI (lint, tests, build) and the nightly backup to Cloudflare R2
 ```

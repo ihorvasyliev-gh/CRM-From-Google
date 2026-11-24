@@ -3,6 +3,7 @@
 // left out of every mailing: course invitations, outcome and outreach surveys.
 // Table: email_opt_outs (migration 62).
 import { supabase } from './supabase';
+import { fetchAllPages } from './queries';
 
 export interface EmailOptOut {
     email: string;
@@ -63,25 +64,28 @@ export function skippedNote(count: number): string {
 }
 
 export async function listEmailOptOuts(): Promise<EmailOptOut[]> {
-    const { data, error } = await supabase
-        .from('email_opt_outs')
-        .select('email, note, opted_out_at')
-        .order('opted_out_at', { ascending: false });
-    if (error) throw error;
-    return (data ?? []) as EmailOptOut[];
+    return fetchAllPages<EmailOptOut>((from, to) => {
+        type QueryLike = PromiseLike<{ data: EmailOptOut[] | null; error: unknown }> & {
+            order?: (col: string) => QueryLike;
+            range?: (f: number, t: number) => PromiseLike<{ data: EmailOptOut[] | null; error: unknown }>;
+        };
+        let q = supabase
+            .from('email_opt_outs')
+            .select('email, note, opted_out_at')
+            .order('opted_out_at', { ascending: false }) as unknown as QueryLike;
+        if (typeof q?.order === 'function') q = q.order('email');
+        return typeof q?.range === 'function' ? q.range(from, to) : q;
+    });
 }
 
 /** Same as listEmailOptOuts, but returns [] before migration 62 is applied (for UI badges). */
 export async function listEmailOptOutsSafe(): Promise<EmailOptOut[]> {
-    const { data, error } = await supabase
-        .from('email_opt_outs')
-        .select('email, note, opted_out_at')
-        .order('opted_out_at', { ascending: false });
-    if (error) {
-        if (isMissingTable(error)) return [];
+    try {
+        return await listEmailOptOuts();
+    } catch (error) {
+        if (isMissingTable(error as { code?: string } | null)) return [];
         throw error;
     }
-    return (data ?? []) as EmailOptOut[];
 }
 
 export interface OptOutResult {

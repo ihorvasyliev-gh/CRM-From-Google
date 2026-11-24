@@ -200,7 +200,7 @@ export function useNetworkSyncStatus(): NetworkSyncStatus {
 
     if (!isOnline) {
         status = 'offline';
-        statusText = 'You are offline • Changes will sync when reconnected (Click to retry)';
+        statusText = 'You are offline • Edits require a connection (Click to retry)';
     } else if (!realtimeConnected || isReconnecting) {
         status = 'reconnecting';
         statusText = 'Reconnecting to realtime sync... (Click to reconnect now)';

@@ -30,13 +30,26 @@ interface UndoStatusChange {
 export async function undoStatusChange({ queryClient, setEnrollments, undo, removedRows = [], showToast, doneMessage = 'Change undone', failMessage = 'Could not undo the change' }: UndoStatusChange): Promise<boolean> {
     let ok = true;
     try {
-        await restoreEnrollments(undo.snapshots, undo.removed);
-        const byId = new Map(undo.snapshots.map(snap => [snap.id, snap]));
+        const result = await restoreEnrollments(undo.snapshots, undo.removed);
+        const skippedSet = new Set(result.skippedIds);
+        const byId = new Map(undo.snapshots.filter(s => !skippedSet.has(s.id)).map(snap => [snap.id, snap]));
         setEnrollments(prev => [
-            ...removedRows.filter(r => !prev.some(e => e.id === r.id)),
-            ...prev.map(e => byId.has(e.id) ? { ...e, ...byId.get(e.id)! } : e),
+            ...(skippedSet.size === 0 ? removedRows.filter(r => !prev.some(e => e.id === r.id)) : []),
+            ...prev.map(e => {
+                const snap = byId.get(e.id);
+                if (!snap) return e;
+                const { expected_status: _es, expected_updated_at: _eu, ...fields } = snap;
+                return { ...e, ...fields };
+            }),
         ]);
-        showToast(doneMessage, 'info');
+        if (skippedSet.size > 0) {
+            const msg = result.restoredCount > 0
+                ? `${doneMessage} (${skippedSet.size} skipped — updated by someone else meanwhile)`
+                : 'Could not undo — this enrollment was already updated by someone else';
+            showToast(msg, 'info');
+        } else {
+            showToast(doneMessage, 'info');
+        }
     } catch (err) {
         console.error('Undo failed:', err);
         showToast(failMessage, 'error');

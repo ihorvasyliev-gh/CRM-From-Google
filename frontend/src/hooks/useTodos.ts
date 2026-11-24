@@ -1,9 +1,13 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { fetchAllPages } from '../lib/queries';
 import { useOptionalAuth } from '../contexts/AuthContext';
+import { toast } from '../lib/toast';
+import { showNotification } from '../lib/notifications';
+import { subscribeWithRetry } from '../lib/realtimeSync';
 import {
+    adminDisplayName,
     computeTodoStats,
     normalizeChecklist,
     TODO_CATEGORIES,
@@ -22,6 +26,29 @@ import {
 
 export const TODOS_KEY = ['admin_todos'] as const;
 export const ADMIN_PROFILES_KEY = ['admin_profiles'] as const;
+
+const LOCAL_WRITE_WINDOW_MS = 10_000;
+const recentLocalTodoWrites = new Map<string, number>();
+
+function markLocalTodoWrite(todoId: string) {
+    const now = Date.now();
+    recentLocalTodoWrites.set(todoId, now);
+    if (recentLocalTodoWrites.size > 100) {
+        for (const [id, ts] of recentLocalTodoWrites) {
+            if (now - ts > LOCAL_WRITE_WINDOW_MS) recentLocalTodoWrites.delete(id);
+        }
+    }
+}
+
+function isRecentLocalTodoWrite(todoId: string): boolean {
+    const ts = recentLocalTodoWrites.get(todoId);
+    if (ts === undefined) return false;
+    if (Date.now() - ts > LOCAL_WRITE_WINDOW_MS) {
+        recentLocalTodoWrites.delete(todoId);
+        return false;
+    }
+    return true;
+}
 export const TODO_COMMENTS_PREFIX = 'admin_todo_comments';
 export const todoCommentsKey = (todoId: string) => [TODO_COMMENTS_PREFIX, todoId] as const;
 
@@ -248,6 +275,7 @@ export function useCreateTodo() {
             return normalizeTodoRow(data as RawTodoRow);
         },
         onSuccess: created => {
+            markLocalTodoWrite(created.id);
             queryClient.setQueryData<AdminTodosResult>(TODOS_KEY, prev =>
                 prev ? { available: true, rows: [created, ...prev.rows.filter(r => r.id !== created.id)] } : { available: true, rows: [created] },
             );
@@ -305,6 +333,7 @@ export function useUpdateTodo() {
             return normalizeTodoRow(data as RawTodoRow);
         },
         onMutate: async ({ id, patch }) => {
+            markLocalTodoWrite(id);
             await queryClient.cancelQueries({ queryKey: TODOS_KEY });
             const previous = queryClient.getQueryData<AdminTodosResult>(TODOS_KEY);
             if (previous) {
@@ -478,4 +507,158 @@ export function useDeleteTodoComment() {
             queryClient.invalidateQueries({ queryKey: TODOS_KEY });
         },
     });
+}
+
+interface RealtimeTodoPayloadRow {
+    id?: string;
+    title?: string | null;
+    assignee_id?: string | null;
+    created_by?: string | null;
+}
+
+interface RealtimeTodoCommentPayloadRow {
+    id?: string;
+    todo_id?: string | null;
+    body?: string | null;
+    created_by?: string | null;
+}
+
+/**
+ * Listens on Supabase Realtime for tasks assigned to the current admin by another
+ * admin and for new comments on tasks the current admin owns or is assigned to.
+ *
+ * Mount once at the admin App shell level (`useTodoRealtimeNotifier(isAdmin)`).
+ */
+export function useTodoRealtimeNotifier(
+    enabled: boolean,
+    onOpenTodo?: (todoId: string) => void,
+) {
+    const user = useOptionalAuth()?.user ?? null;
+    const queryClient = useQueryClient();
+    const notifiedKeysRef = useRef<Set<string>>(new Set());
+    const onOpenTodoRef = useRef(onOpenTodo);
+
+    useEffect(() => {
+        onOpenTodoRef.current = onOpenTodo;
+    }, [onOpenTodo]);
+
+    useEffect(() => {
+        const userId = user?.id;
+        if (!enabled || !userId) return;
+
+        const rememberKey = (key: string): boolean => {
+            const set = notifiedKeysRef.current;
+            if (set.has(key)) return false;
+            set.add(key);
+            if (set.size > 500) {
+                const oldest = set.values().next().value;
+                if (oldest) set.delete(oldest);
+            }
+            return true;
+        };
+
+        const openTodo = (todoId: string) => {
+            if (onOpenTodoRef.current) {
+                onOpenTodoRef.current(todoId);
+                return;
+            }
+            const targetUrl = `/todos?todo=${encodeURIComponent(todoId)}`;
+            window.history.pushState({}, '', targetUrl);
+            window.dispatchEvent(new PopStateEvent('popstate'));
+        };
+
+        const lookupAdminName = (adminId: string | null | undefined): string => {
+            if (!adminId) return 'An admin';
+            const profiles = queryClient.getQueryData<AdminProfile[]>(ADMIN_PROFILES_KEY) ?? [];
+            const match = profiles.find(p => p.id === adminId);
+            return match ? adminDisplayName(match) : 'An admin';
+        };
+
+        const notifyAssigned = (todoId: string, rawTitle: string | null | undefined, actorId?: string | null) => {
+            if (!rememberKey(`assign:${todoId}`)) return;
+            const title = (rawTitle ?? '').trim() || 'Untitled task';
+            const actor = actorId ? lookupAdminName(actorId) : null;
+            const message = actor ? `${actor} assigned you "${title}"` : `Task assigned to you: "${title}"`;
+            toast.info(message, {
+                action: {
+                    label: 'Open',
+                    onClick: () => openTodo(todoId),
+                },
+            });
+            if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+                showNotification('To-Do Assigned to You', {
+                    body: actor ? `${actor}: ${title}` : title,
+                    icon: '/icon-192.png',
+                    tag: `todo-assign-${todoId}`,
+                });
+            }
+        };
+
+        return subscribeWithRetry(
+            () =>
+                supabase
+                    .channel('todo_realtime_notifier')
+                    .on<RealtimeTodoPayloadRow>(
+                        'postgres_changes',
+                        { event: 'INSERT', schema: 'public', table: 'admin_todos' },
+                        payload => {
+                            const row = payload.new;
+                            if (!row?.id || row.assignee_id !== userId) return;
+                            if (row.created_by === userId || isRecentLocalTodoWrite(row.id)) return;
+                            notifyAssigned(row.id, row.title, row.created_by);
+                        },
+                    )
+                    .on<RealtimeTodoPayloadRow>(
+                        'postgres_changes',
+                        { event: 'UPDATE', schema: 'public', table: 'admin_todos' },
+                        payload => {
+                            const row = payload.new;
+                            if (!row?.id) return;
+                            if (row.assignee_id !== userId) {
+                                notifiedKeysRef.current.delete(`assign:${row.id}`);
+                                return;
+                            }
+                            if (isRecentLocalTodoWrite(row.id)) return;
+                            const cached = queryClient
+                                .getQueryData<AdminTodosResult>(TODOS_KEY)
+                                ?.rows.find(t => t.id === row.id);
+                            if (cached && cached.assignee_id === userId) return;
+                            const oldRow = payload.old as Partial<RealtimeTodoPayloadRow> | undefined;
+                            if (!cached && (oldRow?.assignee_id === userId || row.created_by === userId)) return;
+                            notifyAssigned(row.id, row.title);
+                        },
+                    )
+                    .on<RealtimeTodoCommentPayloadRow>(
+                        'postgres_changes',
+                        { event: 'INSERT', schema: 'public', table: 'admin_todo_comments' },
+                        payload => {
+                            const comment = payload.new;
+                            if (!comment?.id || !comment?.todo_id) return;
+                            if (comment.created_by === userId) return;
+                            const cached = queryClient
+                                .getQueryData<AdminTodosResult>(TODOS_KEY)
+                                ?.rows.find(t => t.id === comment.todo_id);
+                            if (!cached || (cached.assignee_id !== userId && cached.created_by !== userId)) return;
+                            if (!rememberKey(`comment:${comment.id}`)) return;
+                            const actor = lookupAdminName(comment.created_by);
+                            const title = cached.title.trim() || 'a task';
+                            const preview = (comment.body ?? '').trim().slice(0, 80);
+                            toast.info(`${actor} commented on "${title}"`, {
+                                action: {
+                                    label: 'Open',
+                                    onClick: () => openTodo(cached.id),
+                                },
+                            });
+                            if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+                                showNotification(`New comment on "${title}"`, {
+                                    body: preview ? `${actor}: ${preview}` : `${actor} left a comment`,
+                                    icon: '/icon-192.png',
+                                    tag: `todo-comment-${comment.id}`,
+                                });
+                            }
+                        },
+                    ),
+            'todo_realtime_notifier',
+        );
+    }, [enabled, user?.id, queryClient]);
 }

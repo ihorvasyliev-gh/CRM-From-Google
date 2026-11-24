@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TooltipProvider } from './ui/Tooltip';
 import Todos from './Todos';
@@ -136,6 +137,7 @@ function renderTodos(props: React.ComponentProps<typeof Todos> = {}) {
 describe('Todos page', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        sessionStorage.clear();
         mockCreate.mockResolvedValue(makeTodo({ id: 'todo-new' }));
         mockUpdate.mockResolvedValue(makeTodo());
         mockDelete.mockResolvedValue('todo-1');
@@ -240,11 +242,58 @@ describe('Todos page', () => {
         });
     });
 
-    it('filters by assignee "Assigned to me"', () => {
-        renderTodos();
+    it('filters by assignee "Assigned to me" and persists filters across mounts', () => {
+        const { unmount } = renderTodos();
         fireEvent.change(screen.getByLabelText('Filter by assignee'), { target: { value: 'mine' } });
         expect(screen.getByText('Booked room at Community Hall')).toBeInTheDocument();
         expect(screen.queryByText('Order catering for Barista')).not.toBeInTheDocument();
+
+        unmount();
+        renderTodos();
+        expect((screen.getByLabelText('Filter by assignee') as HTMLSelectElement).value).toBe('mine');
+        expect(screen.queryByText('Order catering for Barista')).not.toBeInTheDocument();
+    });
+
+    it('falls back to default filters when sessionStorage contains corrupt data', () => {
+        sessionStorage.setItem('todos.filters', JSON.stringify({ tab: 'invalid', category: 123 }));
+        renderTodos();
+        expect(screen.getByText('Booked room at Community Hall')).toBeInTheDocument();
+        expect(screen.getByText('Order catering for Barista')).toBeInTheDocument();
+    });
+
+    it('opens task from ?todo=<id> query param, copies shareable link, and syncs URL on close', async () => {
+        const writeText = vi.fn().mockResolvedValue(undefined);
+        Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+
+        function LocationProbe() {
+            const loc = useLocation();
+            return <div data-testid="loc">{loc.pathname + loc.search}</div>;
+        }
+
+        const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        render(
+            <MemoryRouter initialEntries={['/todos?todo=todo-1']}>
+                <QueryClientProvider client={qc}>
+                    <TooltipProvider>
+                        <LocationProbe />
+                        <Todos />
+                    </TooltipProvider>
+                </QueryClientProvider>
+            </MemoryRouter>,
+        );
+
+        expect(await screen.findByText('To-Do Details')).toBeInTheDocument();
+        expect(screen.getByTestId('loc')).toHaveTextContent('/todos?todo=todo-1');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Copy link' }));
+        await waitFor(() => {
+            expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/todos?todo=todo-1`);
+        });
+
+        fireEvent.click(screen.getAllByRole('button', { name: 'Close' })[0]);
+        await waitFor(() => {
+            expect(screen.getByTestId('loc')).toHaveTextContent('/todos');
+        });
     });
 
     it('shows migration notice when table is not yet created', () => {

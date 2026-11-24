@@ -161,7 +161,7 @@ describe('OutcomeBadges', () => {
             const parentClick = vi.fn();
 
             render(
-                <div onClick={parentClick}>
+                <div role="presentation" onClick={parentClick}>
                     <PhoneLink phone="+353871234567" />
                 </div>,
             );
@@ -197,7 +197,7 @@ describe('OutcomeBadges', () => {
             const parentClick = vi.fn();
 
             render(
-                <div onClick={parentClick}>
+                <div role="presentation" onClick={parentClick}>
                     <PhoneLink phone="+353871234567" />
                 </div>,
             );
@@ -223,7 +223,7 @@ describe('OutcomeBadges', () => {
             expect(container.firstChild).toBeNull();
 
             rerender(
-                <div onClick={parentClick}>
+                <div role="presentation" onClick={parentClick}>
                     <CallMarkButton status="pending" calledAt={null} onToggle={onToggle} name="Jane Doe" />
                 </div>,
             );

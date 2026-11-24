@@ -15,6 +15,7 @@ import {
 } from '../lib/courseSessions';
 import { COURSE_SESSIONS_QUERY_KEY } from './useCourseSessions';
 import { cancelListReload, refreshCachedEnrollments, restoreCachedRows } from '../lib/enrollmentCache';
+import { openMailtoOrHelper } from '../lib/mailtoHelper';
 
 export interface DateStats {
     pending: number;
@@ -108,7 +109,7 @@ async function createConfirmLink(courseId: string | undefined, dates: string[]):
     return `${window.location.origin}/confirm?course_id=${courseId || ''}&date=${dates[0]}`;
 }
 
-/** Put the HTML email on the clipboard and open a BCC draft in the mail client. */
+/** Put the HTML email on the clipboard and open a BCC draft in the mail client (or bulk helper when too long). */
 async function copyHtmlAndOpenDraft(
     htmlBody: string,
     emails: (string | null | undefined)[],
@@ -116,19 +117,31 @@ async function copyHtmlAndOpenDraft(
     note: string,
     showToast: ShowToast
 ) {
+    let copied = true;
     try {
         await navigator.clipboard.write([new ClipboardItem({
             'text/html': new Blob([htmlBody], { type: 'text/html' }),
             'text/plain': new Blob(['Please view this email in an HTML-compatible client.'], { type: 'text/plain' }),
         })]);
-        showToast(`HTML template copied! Press Ctrl+V in your email client.${note}`, 'success');
     } catch (err) {
         console.error('Failed to copy HTML to clipboard:', err);
+        copied = false;
+    }
+
+    const { openedDirectly } = openMailtoOrHelper({
+        emails,
+        subject,
+        html: htmlBody,
+        title: subject,
+    });
+
+    if (!openedDirectly) {
+        showToast(`Too many recipients for a single mailto link — opened batch & webmail helper${note}`, 'info');
+    } else if (copied) {
+        showToast(`HTML template copied! Press Ctrl+V in your email client.${note}`, 'success');
+    } else {
         showToast('Could not copy HTML to clipboard.', 'error');
     }
-    const unique = [...new Set(emails.filter((e): e is string => !!e && e.trim() !== ''))];
-    const bcc = unique.map(e => encodeURIComponent(e)).join(',');
-    window.location.href = `mailto:?bcc=${bcc}&subject=${encodeURIComponent(subject)}`;
 }
 
 function noEmailNote(count: number): string {

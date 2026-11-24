@@ -1,10 +1,11 @@
-import React, { useId } from 'react';
+import React from 'react';
 // Generic primitives live in ../ui and are re-exported here for the viewer screens.
 export { Button } from '../ui/Button';
 export { Segmented, type SegmentOption } from '../ui/Tabs';
 export { EmptyState, ErrorState, SkeletonRows } from '../ui/States';
+export { SelectField, PriorityStar, StatusBadge } from '../ui/FieldPrimitives';
 import {
-    Clock, Star, Search, X, Copy, Mail, Phone, MessageCircle, ChevronDown,
+    Search, X, Copy, Mail, Phone, MessageCircle,
 } from 'lucide-react';
 import { getAvatarGradient } from '../../lib/types';
 import { formatPhoneForCall, formatPhoneForWhatsApp, normalizePhone } from '../../lib/contactUtils';
@@ -12,54 +13,6 @@ import { copyText, initials } from './viewerUtils';
 import { STATUS_META } from './viewerMeta';
 
 // ─── Status ──────────────────────────────────────────────────
-
-export function StatusBadge({
-    status,
-    queuePosition,
-    pendingApproval = false,
-    className = '',
-}: {
-    status: string | null | undefined;
-    queuePosition?: number | null;
-    pendingApproval?: boolean;
-    className?: string;
-}) {
-    if (pendingApproval) {
-        return (
-            <span
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap status-pill-requested ${className}`}
-                title="Completion request is waiting for admin approval"
-            >
-                <Clock size={12} />
-                Awaiting approval
-            </span>
-        );
-    }
-    if (!status) return null;
-    const meta = STATUS_META[status];
-    return (
-        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap ${meta?.pill ?? 'bg-surface-elevated border border-border-subtle text-muted'} ${className}`}>
-            {meta?.icon}
-            <span className={meta ? '' : 'capitalize'}>{meta?.label ?? status}</span>
-            {status === 'requested' && queuePosition != null && (
-                <span className="ml-0.5 tabular-nums opacity-90">#{queuePosition}</span>
-            )}
-        </span>
-    );
-}
-
-export function PriorityStar({ withLabel = false }: { withLabel?: boolean }) {
-    return (
-        <span
-            className={`inline-flex items-center gap-1 ${withLabel ? 'priority-badge px-1.5 py-0.5 rounded-full text-xs font-bold' : 'text-amber-500'}`}
-            title="Priority student"
-            aria-label="Priority"
-        >
-            <Star size={withLabel ? 10 : 13} className="fill-amber-400 text-amber-500" />
-            {withLabel && 'Priority'}
-        </span>
-    );
-}
 
 /** Horizontal stacked bar showing how a course's students split across statuses. */
 export function StatusDistributionBar({
@@ -132,6 +85,7 @@ export function ContactActions({
     const iconBtn = `${iconBtnBase} ${touch ? 'w-9 h-9 lg:w-7 lg:h-7' : 'w-7 h-7'}`;
     const size = touch ? 15 : 13;
     return (
+        // eslint-disable-next-line jsx-a11y-x/no-static-element-interactions -- prevents nested contact link/button clicks and keystrokes from bubbling to the parent row
         <div className={`flex items-center gap-0.5 ${className}`} onClick={stop} onKeyDown={stop}>
             {email && copy && (
                 <button type="button" className={iconBtn} onClick={() => copyText(email, 'Email')} title={`Copy email${who}`} aria-label={`Copy email${who}`}>
@@ -240,46 +194,6 @@ export function SearchField({
                     <Kbd>/</Kbd>
                 ) : null}
             </div>
-        </div>
-    );
-}
-
-export function SelectField({
-    label,
-    value,
-    onChange,
-    children,
-    className = '',
-    icon,
-    defaultValue = 'all',
-}: {
-    label: string;
-    value: string;
-    onChange: (v: string) => void;
-    children: React.ReactNode;
-    className?: string;
-    icon?: React.ReactNode;
-    /** The "nothing changed" value: any other value highlights the field */
-    defaultValue?: string;
-}) {
-    const id = useId();
-    const active = value !== defaultValue && value !== '';
-    return (
-        <div className={`relative ${className}`}>
-            <label htmlFor={id} className="sr-only">{label}</label>
-            {icon && <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none">{icon}</span>}
-            <select
-                id={id}
-                aria-label={label}
-                value={value}
-                onChange={e => onChange(e.target.value)}
-                className={`appearance-none w-full h-9 ${icon ? 'pl-8' : 'pl-3'} pr-8 bg-surface border rounded-xl text-xs font-semibold text-primary focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all cursor-pointer truncate ${
-                    active ? 'border-brand-500/50 bg-brand-500/5' : 'border-border-subtle'
-                }`}
-            >
-                {children}
-            </select>
-            <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
         </div>
     );
 }

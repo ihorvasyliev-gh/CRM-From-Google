@@ -29,6 +29,7 @@ import PreviewModal from './PreviewModal';
 import RevisionModal from './RevisionModal';
 import { loadPdf, rectStyle, useElementWidth, usePdfDocument } from './pdfHooks';
 import { PdfPage } from './pdfView';
+import { useTemplateHistory } from './useTemplateHistory';
 
 interface TemplateEditorProps {
     template: PdfFormTemplate | null;
@@ -55,7 +56,6 @@ function textAt(layout: PdfLayout, rect: Rect): string {
 export default function TemplateEditor({ template, onBack, onSaved }: TemplateEditorProps) {
     const [name, setName] = useState(template?.name ?? '');
     const [description, setDescription] = useState(template?.description ?? '');
-    const [fields, setFields] = useState<FormField[]>(template?.fields ?? []);
     const [settings, setSettings] = useState<TemplateSettings>(template?.settings ?? DEFAULT_SETTINGS);
     const [aliases, setAliases] = useState<Record<string, string[]>>(template?.column_aliases ?? {});
     const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
@@ -90,10 +90,17 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
     const [fileBase, setFileBase] = useState('');
     const nameTouched = useRef(!!template);
     const [report, setReport] = useState<{ text: number; choice: number; dates: number; unused: string[] } | null>(null);
-    // Undo / redo: snapshots of the field list; quick successive edits (a drag, typing) count as one
-    const [past, setPast] = useState<FormField[][]>([]);
-    const [future, setFuture] = useState<FormField[][]>([]);
-    const lastEdit = useRef(0);
+    const {
+        present: fields,
+        canUndo,
+        canRedo,
+        commit: change,
+        undo,
+        redo,
+    } = useTemplateHistory<FormField[]>(template?.fields ?? [], {
+        onChange: () => setDirty(true),
+        bindShortcuts: true,
+    });
 
     // Existing template: fetch its PDF
     useEffect(() => {
@@ -114,35 +121,6 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
 
     const [viewRef, measuredWidth] = useElementWidth<HTMLDivElement>();
     const viewWidth = Math.min(measuredWidth, 1000);
-
-    const change = useCallback((next: FormField[] | ((prev: FormField[]) => FormField[])) => {
-        const value = typeof next === 'function' ? next(fields) : next;
-        if (value === fields) return;
-        const now = Date.now();
-        if (now - lastEdit.current > 700) setPast(p => [...p.slice(-99), fields]);
-        lastEdit.current = now;
-        setFuture([]);
-        setFields(value);
-        setDirty(true);
-    }, [fields]);
-
-    const undo = useCallback(() => {
-        if (past.length === 0) return;
-        setFuture(f => [fields, ...f]);
-        setFields(past[past.length - 1]);
-        setPast(p => p.slice(0, -1));
-        lastEdit.current = 0;
-        setDirty(true);
-    }, [past, fields]);
-
-    const redo = useCallback(() => {
-        if (future.length === 0) return;
-        setPast(p => [...p, fields]);
-        setFields(future[0]);
-        setFuture(f => f.slice(1));
-        lastEdit.current = 0;
-        setDirty(true);
-    }, [future, fields]);
 
     // A new template is named after the form's own title ("Community Organisation Registration Form")
     useEffect(() => {
@@ -409,17 +387,6 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
         const onKey = (e: KeyboardEvent) => {
             const t = e.target as HTMLElement;
             if (t.closest('input, textarea, select, [contenteditable="true"], [role="dialog"]')) return;
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-                e.preventDefault();
-                if (e.shiftKey) redo();
-                else undo();
-                return;
-            }
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
-                e.preventDefault();
-                redo();
-                return;
-            }
             if (!selected) return;
             if (e.key === 'Delete' || e.key === 'Backspace') {
                 e.preventDefault();
@@ -437,7 +404,7 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [selected, change, updateField, undo, redo]);
+    }, [selected, change, updateField]);
 
     // Jump to the page of a field picked from the list
     const selectField = (f: FormField) => {
@@ -584,10 +551,10 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
                 </h2>
                 {step === 'edit' && (
                     <>
-                        <Button variant="ghost" onClick={undo} disabled={past.length === 0} title="Undo (Ctrl+Z)">
+                        <Button variant="ghost" onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)">
                             <Undo2 size={15} /> Undo
                         </Button>
-                        <Button variant="ghost" onClick={redo} disabled={future.length === 0} title="Redo (Ctrl+Shift+Z)">
+                        <Button variant="ghost" onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)">
                             <Redo2 size={15} /> Redo
                         </Button>
                         {layout && template && (

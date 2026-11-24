@@ -14,7 +14,7 @@ import { Button } from './ui/Button';
 import { Segmented, UnderlineTabs, type UnderlineTab } from './ui/Tabs';
 import { DateInput } from './ui/DatePicker';
 import { fieldCls } from './ui/styles';
-import { SelectField } from './Viewer/ViewerUI';
+import { SelectField } from './ui/FieldPrimitives';
 import DrillDownModal from './Analytics/DrillDownModal';
 import Overview from './Analytics/Overview';
 import { courseRunKey, isReportable, listCourseRuns } from './Analytics/courseRuns';
@@ -44,7 +44,7 @@ const VIEWS: UnderlineTab<AnalyticsView>[] = [
     { value: 'combinations', label: 'Course combinations', icon: Award },
 ];
 
-export default function Analytics() {
+export default function Analytics({ onOpenStudentDetail }: { onOpenStudentDetail?: (studentId: string) => void } = {}) {
     const [view, setView] = usePersistentState<AnalyticsView>('analytics.view', 'overview', {
         validate: (v): v is AnalyticsView => v === 'overview' || v === 'combinations',
     });
@@ -304,10 +304,16 @@ export default function Analytics() {
                         {drillRunIgnored ? 'Ignored · Count again' : 'Ignore in reports'}
                     </Button>
                 )}
-                onSelectStudent={setSelectedStudent}
+                onSelectStudent={student => {
+                    if (onOpenStudentDetail) {
+                        onOpenStudentDetail(student.id);
+                    } else {
+                        setSelectedStudent(student);
+                    }
+                }}
             />
 
-            {shownStudent && (
+            {!onOpenStudentDetail && shownStudent && (
                 <StudentDetail
                     open={!!selectedStudent}
                     student={shownStudent}

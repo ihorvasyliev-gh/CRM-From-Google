@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useInRouterContext, useSearchParams } from 'react-router-dom';
+import { useInRouterContext } from 'react-router-dom';
 import {
     AlertTriangle,
     ArrowRight,
@@ -20,13 +20,13 @@ import {
     Search,
     SlidersHorizontal,
     UploadCloud,
-    X,
 } from 'lucide-react';
 import ConfirmDialog from './ConfirmDialog';
 import Badge, { type BadgeTone } from './ui/Badge';
 import { Button, IconButton } from './ui/Button';
 import Card from './ui/Card';
 import FileDropzone from './ui/FileDropzone';
+import { RouterTabSync } from './ui/RouterTabSync';
 import StatTile from './ui/StatTile';
 import { EmptyState, ErrorState, SkeletonRows } from './ui/States';
 import { UnderlineTabs, type UnderlineTab } from './ui/Tabs';
@@ -35,6 +35,8 @@ import DefaultsModal from './ChequeRequisitions/DefaultsModal';
 import ChequeReqEditor, { type EditorSession } from './ChequeRequisitions/Editor';
 import HistoryTab from './ChequeRequisitions/HistoryTab';
 import SuppliersTab from './ChequeRequisitions/SuppliersTab';
+import { ReadingProgressBanner } from './ChequeRequisitions/chequeHelpers';
+import { clipboardFiles, isEditableTarget } from './ChequeRequisitions/chequeUtils';
 import {
     blankSession,
     closeInvoice,
@@ -43,7 +45,6 @@ import {
     supplierSession,
     useOpenInvoice,
     type OpenedInvoice,
-    type ReadProgress,
 } from './ChequeRequisitions/useOpenInvoice';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -87,114 +88,6 @@ const RECENT_STATUS: Record<ChequeReqStatus, { label: string; tone: BadgeTone }>
     ready: { label: 'Ready', tone: 'info' },
     paid: { label: 'Paid', tone: 'success' },
 };
-
-function isEditableTarget(target: EventTarget | null): boolean {
-    if (!(target instanceof HTMLElement)) return false;
-    const tag = target.tagName;
-    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
-}
-
-function clipboardFiles(data: DataTransfer | null): File[] {
-    if (!data) return [];
-    if (data.files && data.files.length > 0) return Array.from(data.files);
-    const files: File[] = [];
-    for (const item of Array.from(data.items ?? [])) {
-        if (item.kind === 'file') {
-            const file = item.getAsFile();
-            if (file) files.push(file);
-        }
-    }
-    return files;
-}
-
-/** Syncs `?tab=` search param with state when rendered inside React Router. */
-function RouterTabSync({
-    activeTab,
-    onTabFromUrl,
-    registerNavigate,
-}: {
-    activeTab: ChequeTabKey;
-    onTabFromUrl: (tab: ChequeTabKey) => void;
-    registerNavigate: (fn: (tab: ChequeTabKey) => void) => void;
-}) {
-    const [searchParams, setSearchParams] = useSearchParams();
-    const urlTab = searchParams.get('tab');
-
-    useEffect(() => {
-        if (isChequeTabKey(urlTab) && urlTab !== activeTab) {
-            onTabFromUrl(urlTab);
-        }
-    }, [urlTab, activeTab, onTabFromUrl]);
-
-    useEffect(() => {
-        registerNavigate(nextTab => {
-            setSearchParams(
-                prev => {
-                    const next = new URLSearchParams(prev);
-                    next.set('tab', nextTab);
-                    return next;
-                },
-                { replace: true },
-            );
-        });
-    }, [registerNavigate, setSearchParams]);
-
-    return null;
-}
-
-function ReadingProgressBanner({
-    reading,
-    progress,
-    onCancel,
-}: {
-    reading: string | null;
-    progress: ReadProgress | null;
-    onCancel: () => void;
-}) {
-    if (!reading && !progress) return null;
-    const label = progress?.label || reading || 'Reading invoice…';
-    const pct = typeof progress?.progress === 'number' ? Math.max(0, Math.min(100, Math.round(progress.progress * (progress.progress <= 1 ? 100 : 1)))) : null;
-    const fileMeta =
-        progress?.fileCount && progress.fileCount > 1 && progress.fileIndex !== undefined
-            ? `File ${progress.fileIndex + 1} of ${progress.fileCount}`
-            : null;
-
-    return (
-        <div
-            role="status"
-            aria-live="polite"
-            className="rounded-xl border border-brand-500/25 bg-brand-500/[0.06] px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3"
-        >
-            <div className="flex-1 min-w-0 space-y-1.5">
-                <div className="flex items-center justify-between gap-2 text-xs">
-                    <span className="inline-flex items-center gap-2 font-semibold text-primary min-w-0">
-                        <Loader2 size={14} className="animate-spin text-brand-500 shrink-0" />
-                        <span className="truncate">{label}</span>
-                    </span>
-                    <span className="text-muted tabular-nums shrink-0">
-                        {[fileMeta, pct !== null ? `${pct}%` : null].filter(Boolean).join(' · ')}
-                    </span>
-                </div>
-                <div className="h-1.5 w-full rounded-full bg-surface-elevated overflow-hidden">
-                    {pct !== null ? (
-                        <div
-                            className="h-full rounded-full bg-brand-500 transition-all duration-200"
-                            style={{ width: `${Math.max(4, pct)}%` }}
-                        />
-                    ) : (
-                        <div className="h-full w-1/3 rounded-full bg-brand-500/75 animate-pulse" />
-                    )}
-                </div>
-            </div>
-            {progress?.canCancel !== false && (
-                <Button variant="secondary" size="sm" onClick={onCancel} className="shrink-0 self-start sm:self-center">
-                    <X size={13} />
-                    Cancel
-                </Button>
-            )}
-        </div>
-    );
-}
 
 function KnownSupplierPicker({
     suppliers,
@@ -623,6 +516,7 @@ export default function ChequeRequisitions() {
                     {inRouter && (
                         <RouterTabSync
                             activeTab={activeTab}
+                            isValidTab={isChequeTabKey}
                             onTabFromUrl={setActiveTab}
                             registerNavigate={registerNavigate}
                         />
@@ -895,6 +789,7 @@ export default function ChequeRequisitions() {
                                                             {gross !== null ? `€${formatAmount(gross)}` : '—'}
                                                         </span>
 
+                                                        {/* eslint-disable-next-line jsx-a11y-x/no-static-element-interactions -- event-bubbling barrier so download button clicks (even while disabled) do not open the row */}
                                                         <div
                                                             className="shrink-0"
                                                             onClick={e => e.stopPropagation()}

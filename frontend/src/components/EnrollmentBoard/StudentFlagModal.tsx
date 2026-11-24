@@ -44,7 +44,7 @@ export default function StudentFlagModal({ open, target, flags, courses, onAddFl
                 if (existing.length === 0) return null;
                 return (
                     <div className="mb-5">
-                        <label className="block text-xs font-medium text-muted mb-2">Existing flags</label>
+                        <p className="text-xs font-medium text-muted mb-2">Existing flags</p>
                         <div className="space-y-1.5">
                             {existing.map(flag => (
                                 <div key={flag.id} className="flex items-start gap-2 bg-orange-500/5 border border-orange-500/20 rounded-lg px-3 py-2">
@@ -71,7 +71,7 @@ export default function StudentFlagModal({ open, target, flags, courses, onAddFl
 
             {/* Add new flag */}
             <div className="border-t border-border-subtle pt-4">
-                <label className="block text-xs font-medium text-muted mb-2">Add new flag</label>
+                <label htmlFor="flag-course" className="block text-xs font-medium text-muted mb-2">Add new flag</label>
                 <select
                     id="flag-course"
                     name="flagCourse"

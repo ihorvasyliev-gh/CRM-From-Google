@@ -29,6 +29,7 @@ export default function MobileFloatingActions({
             {mounted && (
                 <div
                     ref={ref}
+                    aria-hidden
                     className={`fixed inset-0 bg-black/40 z-10 ${closing ? 'animate-fadeOut pointer-events-none' : 'animate-fadeIn'}`}
                     onClick={() => setOpen(false)}
                 />

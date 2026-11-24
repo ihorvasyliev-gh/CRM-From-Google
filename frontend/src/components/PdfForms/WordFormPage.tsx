@@ -30,8 +30,12 @@ const HAS_PLACEHOLDER = /\{[^{}]+\}/;
 
 /** One page of the converted form, with every field ready to type into or tick */
 function WordFormPage({ doc, page, size, width, fields, values, mark, outlines, editing, onChange, onRemove, onAddAt, onCursor }: WordFormPageProps) {
-    const onPageClick = (e: MouseEvent<HTMLDivElement>, scale: number) => {
-        if (!editing || e.target !== e.currentTarget) return;
+    const onPageClick = (e: MouseEvent<HTMLButtonElement>, scale: number) => {
+        if (!editing) return;
+        if (e.detail === 0 && e.clientX === 0 && e.clientY === 0) {
+            onAddAt(page, size.w / 2, size.h / 2);
+            return;
+        }
         const box = e.currentTarget.getBoundingClientRect();
         onAddAt(page, (e.clientX - box.left) / scale, size.h - (e.clientY - box.top) / scale);
     };
@@ -45,10 +49,17 @@ function WordFormPage({ doc, page, size, width, fields, values, mark, outlines, 
             className="mx-auto"
             overlay={scale => (
                 <div
-                    className={`absolute inset-0 ${editing ? 'cursor-crosshair' : ''}`}
-                    onClick={e => onPageClick(e, scale)}
+                    className="absolute inset-0"
                     data-testid={`word-page-${page}`}
                 >
+                    {editing && (
+                        <button
+                            type="button"
+                            aria-label={`Add a field on page ${page}`}
+                            className="absolute inset-0 cursor-crosshair bg-transparent border-0 p-0"
+                            onClick={e => onPageClick(e, scale)}
+                        />
+                    )}
                     {fields.map(f => {
                         const style = rectStyle(f.rect, scale, size.h);
                         const title = f.label;

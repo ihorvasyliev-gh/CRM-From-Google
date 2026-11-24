@@ -1,0 +1,328 @@
+/* Colours are inlined (not emitted as --color-* variables) because :root already defines
+ * chart colours such as --color-completed, and the values depend on the .dark tokens below. */
+@theme inline {
+  --color-background: oklch(var(--bg-background));
+
+  --color-surface-100: oklch(var(--bg-surface));
+  --color-surface-200: oklch(var(--border-subtle));
+  --color-surface-300: oklch(var(--border-strong));
+  --color-surface-400: oklch(var(--text-muted));
+  --color-surface: oklch(var(--bg-surface));
+  --color-surface-elevated: oklch(var(--bg-surface-elevated));
+
+  --color-primary: oklch(var(--text-primary));
+  --color-muted: oklch(var(--text-muted));
+
+  --color-border-subtle: oklch(var(--border-subtle));
+  --color-border-strong: oklch(var(--border-strong));
+
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-200: #c7d2fe;
+  --color-brand-300: #a5b4fc;
+  --color-brand-400: #818cf8;
+  --color-brand-500: oklch(var(--accent-primary));
+  --color-brand-600: oklch(var(--accent-primary-hover));
+  --color-brand-700: #4338ca;
+  --color-brand-800: #3730a3;
+  --color-brand-900: #312e81;
+  --color-brand-950: #1e1b4b;
+
+  --color-success: oklch(var(--status-success));
+  --color-warning: oklch(var(--status-warning));
+  --color-danger: oklch(var(--status-danger));
+  --color-info: oklch(var(--status-info));
+  --color-completed: oklch(var(--status-completed));
+  --ease-spring: var(--ease-spring-out, cubic-bezier(0.34, 1.56, 0.64, 1));
+}
+
+@theme {
+  --font-sans:
+    Inter Variable, Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto,
+    sans-serif;
+  --font-mono:
+    JetBrains Mono Variable, JetBrains Mono, ui-monospace, SFMono-Regular,
+    Menlo, Monaco, Consolas, monospace;
+
+  --shadow-glow-sm: 0 0 15px -3px rgba(99, 102, 241, 0.15);
+  --shadow-glow: 0 0 25px -5px rgba(99, 102, 241, 0.2);
+  --shadow-glow-lg: 0 0 40px -8px rgba(99, 102, 241, 0.25);
+  --shadow-card:
+    0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+  --shadow-card-hover:
+    0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+  --shadow-float: 0 20px 40px -12px rgba(0, 0, 0, 0.15);
+  --shadow-inner-glow: inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+
+  --animate-fadeIn: fadeIn 0.2s ease-out;
+  --animate-scaleIn: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-popoverScaleIn: popoverScaleIn 0.15s cubic-bezier(0.16, 1, 0.3, 1)
+    both;
+  --animate-sheetSlideUp: sheetSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-slideInRight: slideInRight 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-slideUp: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-slideUpCenter: slideUpCenter 0.35s cubic-bezier(0.16, 1, 0.3, 1)
+    both;
+  --animate-slideDown: slideDown 0.25s ease-out;
+  /* Exits (usePresence): short and accelerating, held at the end until the layer unmounts */
+  --animate-fadeOut: fadeOut 0.15s cubic-bezier(0.4, 0, 1, 1) both;
+  --animate-scaleOut: scaleOut 0.15s cubic-bezier(0.4, 0, 1, 1) both;
+  --animate-sheetSlideDown: sheetSlideDown 0.2s cubic-bezier(0.4, 0, 1, 1) both;
+  --animate-slideOutRight: slideOutRight 0.2s cubic-bezier(0.4, 0, 1, 1) both;
+
+  /* Every transition-* utility moves like the rest of the app (Tailwind's default is 150ms ease) */
+  --default-transition-duration: 200ms;
+  --default-transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --transition-property-all:
+    color, background-color, border-color, outline-color, text-decoration-color,
+    fill, stroke, opacity, box-shadow, transform, translate, scale, rotate,
+    filter, backdrop-filter, width, height, max-height, max-width;
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95) translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+  @keyframes popoverScaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.92);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  @keyframes sheetSlideUp {
+    from {
+      opacity: 0;
+      transform: translateY(100%);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes slideInRight {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  /* `translate`, not `transform`: Tailwind 4's -translate-x-1/2 sets `translate`, and the two would add up */
+  @keyframes slideUpCenter {
+    from {
+      opacity: 0;
+      translate: -50% 20px;
+    }
+    to {
+      opacity: 1;
+      translate: -50% 0;
+    }
+  }
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes fadeOut {
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes scaleOut {
+    to {
+      opacity: 0;
+      transform: scale(0.96) translateY(6px);
+    }
+  }
+  @keyframes sheetSlideDown {
+    to {
+      transform: translateY(100%);
+    }
+  }
+  @keyframes slideOutRight {
+    to {
+      transform: translateX(100%);
+    }
+  }
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+/* ===== Premium Cyber-Minimalism Design System ===== */
+
+@layer base {
+    :root {
+        /* Light Theme - OKLCH (L C H) space-separated values */
+        --bg-background: 0.975 0.005 240;
+        --bg-surface: 1 0 0;
+        --bg-surface-elevated: 0.965 0.007 240;
+
+        --text-primary: 0.16 0.015 240;
+        --text-muted: 0.50 0.02 240; /* 5:1 on the light surfaces (0.55 fell under 4.5:1) */
+
+        --border-subtle: 0.92 0.01 240;
+        --border-strong: 0.85 0.015 240;
+
+        --accent-primary: 0.55 0.22 260; /* Vibrant Royal Indigo */
+        --accent-primary-hover: 0.48 0.22 260;
+
+        /* Semantic Status */
+        --status-warning:   0.79 0.17 75;    /* Amber   — Requested  */
+        --status-info:      0.62 0.19 210;   /* Sky     — Invited    */
+        --status-success:   0.70 0.18 152;   /* Emerald — Confirmed  */
+        --status-completed: 0.60 0.22 295;   /* Violet  — Completed  */
+        --status-danger:    0.62 0.22 25;    /* Red     — Rejected   */
+
+        --glass-bg: rgba(255, 255, 255, 0.7);
+        --glass-border: rgba(228, 228, 231, 0.5);
+        
+        /* Spring Physics easing curve */
+        --ease-spring-out: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+        /* Chart Colors - Light Mode Defaults */
+        --color-chart-border: #e2e8f0;
+        --color-chart-text: #64748b;
+        --color-requested:  #f59e0b;   /* Amber   */
+        --color-invited:    #0ea5e9;   /* Sky Blue */
+        --color-confirmed:  #10b981;   /* Emerald */
+        --color-completed:  #8b5cf6;   /* Violet  */
+        --color-trend-reg:  #0ea5e9;
+        --color-trend-comp: #10b981;
+        --color-course-start: #8b5cf6;
+        --color-course-end:   #6d28d9;
+        --color-variant-start: #10b981;
+        --color-variant-end:   #059669;
+        --color-fulltime:    #10b981;
+        --color-parttime:    #0ea5e9;
+        --color-unspecified: #8b5cf6;
+        --color-totalgrads:  #8b5cf6;
+        --color-contacted:   #a78bfa;
+        --color-responded:   #10b981;
+        --color-field-start: #60a5fa;
+        --color-field-end:   #3b82f6;
+        --color-jobs-start:  #10b981;
+        --color-jobs-end:    #10b981;
+
+        /* Categorical chart palette (analytics) */
+        --chart-brand:   #6366f1;
+        --chart-violet:  #8b5cf6;
+        --chart-sky:     #0ea5e9;
+        --chart-emerald: #10b981;
+        --chart-amber:   #f59e0b;
+        --chart-rose:    #f43f5e;
+        --chart-pink:    #ec4899;
+        --chart-orange:  #fb923c;
+        --chart-neutral: #94a3b8;
+    }
+
+    .dark {
+        /* Dark Theme - OKLCH (Void / Cyber-Minimalism) */
+        --bg-background: 0.12 0.015 240; /* Void Black */
+        --bg-surface: 0.16 0.02 240;
+        --bg-surface-elevated: 0.22 0.02 240;
+
+        --text-primary: 0.97 0.005 240;
+        --text-muted: 0.72 0.008 240; /* Polish contrast: lighter, neutral grey */
+
+        --border-subtle: 0.26 0.01 240; /* Polish contrast: slightly lighter gridlines */
+        --border-strong: 0.33 0.02 240;
+
+        --accent-primary: 0.67 0.19 260; /* Electric Indigo */
+        --accent-primary-hover: 0.74 0.16 260;
+
+        /* Semantic Status */
+        --status-warning:   0.86 0.14 75;    /* Amber   — Requested  */
+        --status-info:      0.75 0.15 210;   /* Sky     — Invited    */
+        --status-success:   0.82 0.14 152;   /* Emerald — Confirmed  */
+        --status-completed: 0.78 0.18 295;   /* Violet  — Completed  */
+        --status-danger:    0.73 0.18 25;    /* Red     — Rejected   */
+
+        --glass-bg: rgba(24, 24, 27, 0.7);
+        --glass-border: rgba(63, 63, 70, 0.5);
+
+        /* Chart Colors - Dark Mode */
+        --color-chart-border: #27272a;
+        --color-chart-text: #a1a1aa;
+        --color-requested:  #fbbf24;   /* Amber-400   */
+        --color-invited:    #38bdf8;   /* Sky-400     */
+        --color-confirmed:  #34d399;   /* Emerald-400 */
+        --color-completed:  #c084fc;   /* Violet-400  */
+        --color-trend-reg:  #38bdf8;
+        --color-trend-comp: #34d399;
+        --color-course-start: #c084fc;
+        --color-course-end:   #a855f7;
+        --color-variant-start: #34d399;
+        --color-variant-end:   #10b981;
+        --color-fulltime:    #34d399;
+        --color-parttime:    #38bdf8;
+        --color-unspecified: #c084fc;
+        --color-totalgrads:  #c084fc;
+        --color-contacted:   #a78bfa;
+        --color-responded:   #34d399;
+        --color-field-start: #93c5fd;
+        --color-field-end:   #3b82f6;
+        --color-jobs-start:  #34d399;
+        --color-jobs-end:    #34d399;
+
+        --chart-brand:   #818cf8;
+        --chart-violet:  #a78bfa;
+        --chart-sky:     #38bdf8;
+        --chart-emerald: #34d399;
+        --chart-amber:   #fbbf24;
+        --chart-rose:    #fb7185;
+        --chart-pink:    #f472b6;
+        --chart-orange:  #fdba74;
+        --chart-neutral: #64748b;
+    }
+}

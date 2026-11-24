@@ -4,7 +4,8 @@ import tailwindcss from '@tailwindcss/vite'
 
 /** Long-lived vendor chunks, so an app deploy does not invalidate cached libraries. */
 const chunkGroups: Record<string, string[]> = {
-    vendor: ['react', 'react-dom', 'scheduler', 'lucide-react', 'react-router', 'react-router-dom', '@tanstack/react-query'],
+    vendor: ['react', 'react-dom', 'scheduler', 'lucide-react', 'react-router', 'react-router-dom', '@tanstack/react-query', '@tanstack/react-virtual'],
+    supabase: ['@supabase/supabase-js', '@supabase/auth-js', '@supabase/postgrest-js', '@supabase/realtime-js', '@supabase/storage-js', '@supabase/functions-js'],
     charts: ['recharts'],
     dnd: ['@dnd-kit/core'],
     'excel-export': ['write-excel-file', 'fflate'],

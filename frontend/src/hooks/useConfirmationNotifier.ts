@@ -37,8 +37,8 @@ export function useConfirmationNotifier() {
 
     useEffect(() => {
         if (!user) return;
-        // External Lists users can't see enrollments
-        if (getUserRole(user) === 'outreach') return;
+        // Only admins receive enrollment confirmation notifications
+        if (getUserRole(user) !== 'admin') return;
         if (!isNotificationSupported()) return;
 
         return subscribeWithRetry(() => supabase

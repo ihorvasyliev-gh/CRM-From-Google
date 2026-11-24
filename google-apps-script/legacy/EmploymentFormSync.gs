@@ -1,4 +1,12 @@
 // ==========================================
+// DEPRECATED / ARCHIVED (LEGACY)
+// ==========================================
+// Replaced by the CRM's public /status self-report page, which writes directly
+// via the hardened submit_employment_status() RPC without needing a separate
+// Google Form or Apps Script project. Kept here for historical reference only.
+// ==========================================
+//
+// ==========================================
 // EMPLOYMENT STATUS FORM → SUPABASE
 // ==========================================
 // Standalone script for the Employment Status Google Form.

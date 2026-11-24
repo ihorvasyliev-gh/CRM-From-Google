@@ -26,7 +26,7 @@ import SearchInput from '../ui/SearchInput';
 import Pagination from '../ui/Pagination';
 import { Segmented } from '../ui/Tabs';
 import { EmptyState } from '../ui/States';
-import { SelectField } from '../Viewer/ViewerUI';
+import { SelectField } from '../ui/FieldPrimitives';
 import { tableWrapCls, tableCls, theadCls, thCls, tbodyCls, trCls, tdCls } from '../ui/styles';
 import {
     extractAvailableCompletedCourses,

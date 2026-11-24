@@ -648,6 +648,7 @@ export default function HistoryTab({
                                         </div>
                                     )}
 
+                                    {/* eslint-disable-next-line jsx-a11y-x/no-static-element-interactions -- event-bubbling barrier so action bar interactions do not open the card */}
                                     <div
                                         className="flex items-center justify-between gap-2 mt-3 pt-2.5 border-t border-border-subtle/70"
                                         onClick={e => e.stopPropagation()}

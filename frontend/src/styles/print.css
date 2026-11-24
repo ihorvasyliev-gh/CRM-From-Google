@@ -1,0 +1,68 @@
+/* ── Two-page executive report (Analytics → PDF report) ─────────────────────
+   A4 sheets in an editorial annual-report palette harmonised with the Cork City Partnership
+   (deep forest & Irish emerald) and SICAP (cerulean blue) brand identity. Always light paper,
+   since it is printed or saved as a PDF. */
+.report-sheet {
+    --rs-paper: #ffffff;
+    --rs-ink: #0f241d;
+    --rs-ink-2: #475551;
+    --rs-muted: #6b7974;
+    --rs-rule: #dde4e0;
+    --rs-rule-soft: #eef2f0;
+    --rs-axis: #c2ccc7;
+    --rs-panel: #f6f9f7;
+    --rs-track: #edf2ef;
+    --rs-brand: #15803d;
+    --rs-brand-dark: #14532d;
+    --rs-registered: #0369a1;
+    --rs-completed: #15803d;
+    --rs-working: #0f766e;
+    --rs-runs: #334155;
+    --rs-waiting: #d97706;
+    --rs-part-time: #0284c7;
+    --rs-age-soft: #86c5a0;
+    --rs-up-bg: #dcfce7;
+    --rs-up-ink: #166534;
+    --rs-down-bg: #fee2e2;
+    --rs-down-ink: #991b1b;
+    color-scheme: light;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    width: 210mm;
+    height: 297mm;
+    padding: 0 13mm 8mm;
+    overflow: hidden;
+    background: var(--rs-paper);
+    color: var(--rs-ink);
+    font-size: 8.5pt;
+    line-height: 1.35;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+/* In the preview each sheet is a page lying on the desk */
+.report-preview .report-sheet {
+    box-shadow: 0 10px 34px rgb(15 36 29 / 0.14), 0 0 0 1px rgb(15 36 29 / 0.06);
+}
+
+/* ── Cheque requisition print sheet ──────────────────────────────────────────
+   Scoped with `body.cheque-printing` so it never conflicts with `.report-print-root`
+   in Analytics. */
+.cheque-print-root { display: none; }
+@media print {
+    html:has(body.cheque-printing),
+    body.cheque-printing {
+        background: white !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        height: auto !important;
+        overflow: visible !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    body.cheque-printing > :not(.cheque-print-root) { display: none !important; }
+    body.cheque-printing .cheque-print-root { display: block !important; background: white !important; }
+    body.cheque-printing .cheque-print-root .cheque-print-page { break-inside: avoid; break-after: page; width: 100%; }
+    body.cheque-printing .cheque-print-root .cheque-print-page:last-child { break-after: auto; }
+}

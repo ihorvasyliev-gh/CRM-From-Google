@@ -2,10 +2,11 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useApproveCompletion, useRejectCompletion } from '../hooks/useApprovals';
-import { X, Edit2, Pencil, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, CheckSquare, Send, XCircle, GraduationCap, Check, Loader2, ExternalLink, GitMerge, Copy, MessageSquare, Navigation, House, Mailbox } from 'lucide-react';
+import { X, Edit2, Pencil, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckSquare, XCircle, GraduationCap, Check, Loader2, ExternalLink, GitMerge, Copy, MessageSquare, Navigation, House, Mailbox, Link2 } from 'lucide-react';
 import { Student, getAvatarGradient, cleanVariant, fullName, type EnrollmentStatus, type EmploymentStatusRow } from '../lib/types';
 import { changeEnrollmentStatus } from '../lib/enrollmentStatus';
-import { formatPhoneForWhatsApp, formatPhoneForCall, formatGoogleMapsUrl, formatStudentContactSummary, normalizePhone } from '../lib/contactUtils';
+import { formatPhoneForWhatsApp, formatPhoneForCall, formatGoogleMapsUrl, formatStudentContactSummary, normalizePhone, formatEircode } from '../lib/contactUtils';
+import { emailProblem } from '../lib/emailValidation';
 import { formatDateLongWithWeekday, todayISO, formatDisplayDate, formatLocalDate } from '../lib/dateUtils';
 import { useCourseSessions } from '../hooks/useCourseSessions';
 import { formatTimeRange, hasDayOverrides, sessionDays, sessionForEnrollment, sessionHasSchedule, sessionTooltip, type CourseSession } from '../lib/courseSessions';
@@ -18,7 +19,7 @@ import { notify } from '../lib/toast';
 import type { NavigateFn } from '../lib/navigation';
 import { errorMessage } from '../lib/errors';
 import { refreshCachedEnrollments } from '../lib/enrollmentCache';
-import { fetchStudent } from '../lib/students';
+import { fetchStudent, patchStudent } from '../lib/students';
 import { applyStudentChange, studentRecordKey } from '../lib/studentCache';
 import { TrackingBadge, EmploymentBadge, CallMarkButton } from './OutcomeBadges';
 import OutcomeEditModal, { type OutcomeValues } from './OutcomeEditModal';
@@ -73,15 +74,6 @@ interface Props {
     onNavigate?: NavigateFn;
 }
 
-const STATUS_BADGE: Record<string, { icon: React.JSX.Element; className: string }> = {
-    requested: { icon: <Clock size={12} />, className: 'bg-warning/10 text-status-requested border-warning/30' },
-    invited: { icon: <Send size={12} />, className: 'bg-info/10 text-status-invited border-info/25' },
-    confirmed: { icon: <CheckCircle size={12} />, className: 'bg-success/10 text-status-confirmed border-success/25' },
-    rejected: { icon: <XCircle size={12} />, className: 'bg-danger/10 text-status-rejected border-danger/25' },
-    completed: { icon: <GraduationCap size={12} />, className: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-500/10 dark:text-teal-400 dark:border-teal-500/20' },
-    withdrawn: { icon: <XCircle size={12} />, className: 'bg-muted/10 text-muted border-border-subtle' },
-};
-
 // ─── Inline Editable Field ──────────────────────────────────
 function InlineEditField({
     value,
@@ -135,25 +127,30 @@ function InlineEditField({
             cleanValue = normalizePhone(next);
         } else if (field === 'email') {
             cleanValue = next.trim().toLowerCase();
+            if (cleanValue) {
+                const problem = emailProblem(cleanValue);
+                if (problem) {
+                    setEditValue(value);
+                    onError?.(problem);
+                    savingRef.current = false;
+                    setSaving(false);
+                    setEditing(false);
+                    return;
+                }
+            }
         } else if (field === 'eircode') {
-            cleanValue = next.trim().toUpperCase();
+            cleanValue = cleanValue ? formatEircode(cleanValue) : '';
         }
 
         try {
-            const { data: row, error } = await supabase
-                .from('students')
-                .update({ [field]: cleanValue || null })
-                .eq('id', studentId)
-                .select()
-                .maybeSingle();
-            if (error) {
-                setEditValue(value);
-                onError?.(error.message.includes('duplicate') || error.message.includes('unique')
-                    ? `Another student already uses this ${label.toLowerCase()}`
-                    : `Failed to update ${label.toLowerCase()}`);
-            } else {
-                onSaved(field, cleanValue, (row as Student | null) ?? null);
-            }
+            const row = await patchStudent(studentId, { [field]: cleanValue || null });
+            onSaved(field, cleanValue, row);
+        } catch (err) {
+            setEditValue(value);
+            const msg = errorMessage(err);
+            onError?.(/already exists|duplicate|unique/i.test(msg)
+                ? `Another student already uses this ${label.toLowerCase()}`
+                : `Failed to update ${label.toLowerCase()}`);
         } finally {
             savingRef.current = false;
             setSaving(false);
@@ -177,6 +174,7 @@ function InlineEditField({
 
     if (editing && type === 'date') {
         return (
+            // eslint-disable-next-line jsx-a11y-x/no-static-element-interactions -- catches Escape/Enter bubbling from child date picker buttons
             <div className="p-2.5 rounded-xl bg-brand-500/5 border border-brand-500/20" onKeyDown={handleKeyDown}>
                 <div className="flex items-center gap-3 mb-2">
                     <span className="text-brand-500 shrink-0">{icon}</span>
@@ -225,28 +223,31 @@ function InlineEditField({
     }
 
     return (
-        <div
-            className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface transition-all cursor-pointer group"
-            onClick={() => {
-                if (value) {
-                    onCopy(displayValue || value, label);
-                }
-            }}
-            title="Click to copy to clipboard"
-        >
-            <span className="text-muted">{icon}</span>
-            <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted font-medium">{label}</p>
-                <p className="text-sm text-primary">{displayValue || value || <span className="text-muted italic">Not set</span>}</p>
-            </div>
+        <div className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface transition-all group">
+            <button
+                type="button"
+                className="flex items-center gap-3 flex-1 min-w-0 text-left cursor-pointer"
+                onClick={() => {
+                    if (value) {
+                        onCopy(displayValue || value, label);
+                    }
+                }}
+                title="Click to copy to clipboard"
+            >
+                <span className="text-muted">{icon}</span>
+                <span className="flex-1 min-w-0">
+                    <span className="block text-xs text-muted font-medium">{label}</span>
+                    <span className="block text-sm text-primary">{displayValue || value || <span className="text-muted italic">Not set</span>}</span>
+                </span>
+            </button>
             {extraActions && (
-                <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center gap-1">
                     {extraActions}
                 </div>
             )}
             <button
-                onClick={(e) => {
-                    e.stopPropagation();
+                type="button"
+                onClick={() => {
                     setEditValue(value);
                     setEditing(true);
                 }}
@@ -570,19 +571,38 @@ export default function StudentDetail({ open = true, student: openedWith, onClos
                                 {(student.first_name?.[0] || '').toUpperCase()}{(student.last_name?.[0] || '').toUpperCase()}
                             </div>
                             <div>
-                                <h2 
-                                    onClick={() => handleCopyField(fullName(student), 'Name')}
-                                    className="font-bold text-primary cursor-pointer hover:text-brand-500 dark:hover:text-brand-400 transition-colors"
-                                    title="Click to copy name to clipboard"
-                                >
-                                    {student.first_name} {student.last_name}
+                                <h2 className="font-bold text-primary">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleCopyField(fullName(student), 'Name')}
+                                        className="text-left cursor-pointer hover:text-brand-500 dark:hover:text-brand-400 transition-colors"
+                                        title="Click to copy name to clipboard"
+                                    >
+                                        {student.first_name} {student.last_name}
+                                    </button>
                                 </h2>
                                 <p className="text-xs text-muted">{enrollments.length} enrollment{enrollments.length !== 1 ? 's' : ''}</p>
                             </div>
                         </div>
-                        <button type="button" onClick={onClose} aria-label="Close student details" title="Close (Esc)" className="p-2 text-muted hover:text-primary hover:bg-surface-elevated rounded-lg transition-all">
-                            <X size={18} />
-                        </button>
+                        <div className="flex items-center gap-0.5 shrink-0">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const url = `${window.location.origin}/students?student=${encodeURIComponent(student.id)}`;
+                                    navigator.clipboard.writeText(url)
+                                        .then(() => notify({ message: 'Student link copied', type: 'success' }))
+                                        .catch(() => notify({ message: 'Could not copy link', type: 'error' }));
+                                }}
+                                aria-label="Copy link to student"
+                                title="Copy link to student"
+                                className="p-2 text-muted hover:text-primary hover:bg-surface-elevated rounded-lg transition-all"
+                            >
+                                <Link2 size={16} />
+                            </button>
+                            <button type="button" onClick={onClose} aria-label="Close student details" title="Close (Esc)" className="p-2 text-muted hover:text-primary hover:bg-surface-elevated rounded-lg transition-all">
+                                <X size={18} />
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -836,7 +856,9 @@ export default function StudentDetail({ open = true, student: openedWith, onClos
                             </div>
                         ) : (
                             <div className="space-y-2.5">
-                                {enrollments.map(en => (
+                                {enrollments.map(en => {
+                                    const statusCfg = STATUS_CONFIG[en.status];
+                                    return (
                                     <div key={en.id} className="p-3 rounded-xl bg-surface/50 border border-border-subtle hover:bg-surface transition-all group">
                                         <div className="flex items-center justify-between mb-2">
                                             <div>
@@ -853,8 +875,8 @@ export default function StudentDetail({ open = true, student: openedWith, onClos
                                                 )}
                                                 <SessionLine session={sessionForEnrollment({ ...en, completed_date: en.completed_date ?? null }, courseSessions)} />
                                             </div>
-                                            <span className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 border font-medium ${STATUS_BADGE[en.status]?.className || 'bg-surface-elevated text-muted border-border-subtle'}`}>
-                                                {STATUS_BADGE[en.status]?.icon} {STATUS_CONFIG[en.status]?.label || en.status}
+                                            <span className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 border font-medium ${statusCfg ? `${statusCfg.bg} ${statusCfg.color} ${statusCfg.border}` : 'bg-surface-elevated text-muted border-border-subtle'}`}>
+                                                {statusCfg?.icon} {statusCfg?.label || en.status}
                                             </span>
                                         </div>
 
@@ -933,7 +955,8 @@ export default function StudentDetail({ open = true, student: openedWith, onClos
                                             </button>
                                         </div>
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>

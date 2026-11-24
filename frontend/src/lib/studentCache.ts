@@ -17,7 +17,6 @@ export const STUDENT_VIEW_KEYS = [
     'enrollment_modal_students',
     'outcomes_graduates',
     'pending_completions',
-    'restricted_students_search',
     'restricted_student_detail',
     'viewer_students_directory',
     'viewer_course_roster',

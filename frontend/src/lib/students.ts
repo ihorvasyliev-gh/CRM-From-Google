@@ -47,6 +47,13 @@ export async function updateStudent(id: string, fields: Omit<StudentPayload, 'id
     return data as Student | null;
 }
 
+/** Updates a subset of fields on a student (inline edits); resolves to the stored row. */
+export async function patchStudent(id: string, fields: Partial<Omit<StudentPayload, 'id'>>): Promise<Student | null> {
+    const { data, error } = await supabase.from('students').update(fields).eq('id', id).select().maybeSingle();
+    if (error) throw writeError(error);
+    return data as Student | null;
+}
+
 /** Deletes a student; their enrollments, flags and outcomes go with them (ON DELETE CASCADE). */
 export async function deleteStudent(id: string): Promise<void> {
     const { error } = await supabase.from('students').delete().eq('id', id);

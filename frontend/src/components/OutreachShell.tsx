@@ -3,6 +3,8 @@ import { LogOut, Moon, Sun, Upload, Mail, CheckCircle, X, HelpCircle, ListChecks
 import { lazyWithRetry } from '../lib/lazyWithRetry';
 import { IconButton } from './ui/Button';
 import NetworkStatusIndicator from './ui/NetworkStatusIndicator';
+import ErrorBoundary from './ErrorBoundary';
+import BulkEmailModal from './BulkEmailModal';
 import { GlobalToaster } from './Toast';
 
 const OutreachLists = lazyWithRetry(() => import('./OutreachLists'));
@@ -144,15 +146,18 @@ export default function OutreachShell({ role, darkMode, toggleDarkMode, userEmai
                         </ol>
                     </section>
                 )}
-                <Suspense fallback={
-                    <div className="w-full flex items-center justify-center min-h-[50vh]">
-                        <div className="w-8 h-8 rounded-full border-2 border-brand-500/20 border-t-brand-500 animate-spin" />
-                    </div>
-                }>
-                    {tab === 'forms' ? <PdfForms canManage={role === 'forms'} /> : <OutreachLists />}
-                </Suspense>
+                <ErrorBoundary inline>
+                    <Suspense fallback={
+                        <div className="w-full flex items-center justify-center min-h-[50vh]">
+                            <div className="w-8 h-8 rounded-full border-2 border-brand-500/20 border-t-brand-500 animate-spin" />
+                        </div>
+                    }>
+                        {tab === 'forms' ? <PdfForms canManage={role === 'forms'} /> : <OutreachLists />}
+                    </Suspense>
+                </ErrorBoundary>
             </main>
 
+            <BulkEmailModal />
             <GlobalToaster />
         </div>
     );

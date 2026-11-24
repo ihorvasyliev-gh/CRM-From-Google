@@ -85,10 +85,14 @@ const byName = (a: GraduateRow, b: GraduateRow) =>
 
 /** Every student who completed a course, with their employment answer, A–Z by last name. */
 export async function fetchGraduatesFn(): Promise<GraduateRow[]> {
-    // Built by the database in one request (migration 85, extended in 90 and 97)
-    const { data, error } = await supabase.rpc('get_outcome_graduates');
-    if (!error) {
-        const rows = (data ?? []) as Record<string, unknown>[];
+    // Built by the database in paged RPC calls (migration 85, extended in 90, 97, 99)
+    try {
+        const rows = await fetchAllPages<Record<string, unknown>>((from, to) => {
+            const req = supabase.rpc('get_outcome_graduates') as unknown as {
+                range?: (f: number, t: number) => PromiseLike<{ data: Record<string, unknown>[] | null; error: unknown }>;
+            } & PromiseLike<{ data: Record<string, unknown>[] | null; error: unknown }>;
+            return typeof req?.range === 'function' ? req.range(from, to) : req;
+        });
         // Before migration 97 the RPC doesn't return completion dates; fall back so date filtering still works
         if (rows.length === 0 || 'last_completed_date' in rows[0]) {
             return (rows as unknown as GraduateRow[])
@@ -103,9 +107,11 @@ export async function fetchGraduatesFn(): Promise<GraduateRow[]> {
         }
         console.warn('get_outcome_graduates has no completion dates (is migration 97 applied?), building the list here');
         return buildGraduates();
+    } catch (error) {
+        const msg = error && typeof error === 'object' && 'message' in error ? String((error as { message: unknown }).message) : String(error);
+        console.warn('get_outcome_graduates unavailable (is migration 85 applied?), building the list here:', msg);
+        return buildGraduates();
     }
-    console.warn('get_outcome_graduates unavailable (is migration 85 applied?), building the list here:', error.message);
-    return buildGraduates();
 }
 
 /** The same list from completed enrollments and employment statuses, read in full. */
