@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useId } from 'react';
 import { X, Save, AlertCircle, Loader2, Trash2 } from 'lucide-react';
 import { MonthPicker } from './ui/DatePicker';
 import DialogLayer from './ui/DialogLayer';
@@ -28,6 +28,7 @@ interface OutcomeEditModalProps {
 }
 
 export default function OutcomeEditModal({ isOpen, person: graduate, onClose, onSaved, onSave, onDelete, deleteLabel = 'Remove' }: OutcomeEditModalProps) {
+    const idPrefix = useId();
     const [trackingStatus, setTrackingStatus] = useState<'not_contacted' | 'pending' | 'responded'>('not_contacted');
     const [isWorking, setIsWorking] = useState<boolean | null>(null);
     const [startedMonth, setStartedMonth] = useState('');
@@ -130,10 +131,10 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                 <form id="edit-outcome-form" onSubmit={handleSave} className="space-y-5">
                     {/* Tracking Status */}
                     <div>
-                        <label className="block text-xs font-semibold text-muted mb-2 uppercase tracking-wider">
+                        <p id={`${idPrefix}-tracking-status`} className="text-xs font-semibold text-muted mb-2 uppercase tracking-wider">
                             Tracking Status
-                        </label>
-                        <div className="grid grid-cols-3 gap-2">
+                        </p>
+                        <div role="group" aria-labelledby={`${idPrefix}-tracking-status`} className="grid grid-cols-3 gap-2">
                             <button
                                 type="button"
                                 aria-pressed={trackingStatus === 'not_contacted'}
@@ -177,14 +178,14 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                     <div className="space-y-4 pt-4 border-t border-border-subtle">
                         <div>
                             <div className="flex items-baseline justify-between mb-3">
-                                <label className="block text-xs font-semibold text-muted uppercase tracking-wider">
+                                <p id={`${idPrefix}-is-working`} className="text-xs font-semibold text-muted uppercase tracking-wider">
                                     Is the person working?
-                                </label>
+                                </p>
                                 {trackingStatus !== 'responded' && (
                                     <span className="text-[11px] text-muted">Sets status to Responded</span>
                                 )}
                             </div>
-                            <div className="grid grid-cols-2 gap-3">
+                            <div role="group" aria-labelledby={`${idPrefix}-is-working`} className="grid grid-cols-2 gap-3">
                                 <button
                                     type="button"
                                     aria-pressed={isWorkingSelected}
@@ -221,17 +222,18 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                         {isWorkingSelected && (
                             <div className="space-y-4 animate-fadeIn">
                                 <div>
-                                    <label className="block text-xs font-semibold text-muted mb-2 uppercase tracking-wider">
+                                    <p className="text-xs font-semibold text-muted mb-2 uppercase tracking-wider">
                                         Started Month
-                                    </label>
+                                    </p>
                                     <MonthPicker label="Started month" value={startedMonth} onChange={setStartedMonth} />
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-semibold text-muted mb-2 uppercase tracking-wider">
+                                    <label htmlFor={`${idPrefix}-field-of-work`} className="block text-xs font-semibold text-muted mb-2 uppercase tracking-wider">
                                         Field / Sector
                                     </label>
                                     <input
+                                        id={`${idPrefix}-field-of-work`}
                                         type="text"
                                         value={fieldOfWork}
                                         onChange={(e) => setFieldOfWork(e.target.value)}
@@ -241,10 +243,10 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-semibold text-muted mb-3 uppercase tracking-wider">
+                                    <p id={`${idPrefix}-employment-type`} className="text-xs font-semibold text-muted mb-3 uppercase tracking-wider">
                                         Employment Type
-                                    </label>
-                                    <div className="grid grid-cols-2 gap-2.5">
+                                    </p>
+                                    <div role="group" aria-labelledby={`${idPrefix}-employment-type`} className="grid grid-cols-2 gap-2.5">
                                         {EMPLOYMENT_TYPES.map((opt) => (
                                             <button
                                                 key={opt.value}

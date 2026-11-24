@@ -227,11 +227,14 @@ function SingleCardItem({
                                     <CustomTooltip
                                         content={`Will print blank unless added as custom variables:\n${unknownTags.map(t => `{${t}}`).join(', ')}`}
                                     >
-                                        <span tabIndex={0} className="inline-flex">
+                                        <button
+                                            type="button"
+                                            className="inline-flex rounded-md cursor-default focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-500/40"
+                                        >
                                             <Badge tone="warning" icon={<AlertTriangle size={11} aria-hidden="true" />}>
                                                 {plural(unknownTags.length, 'unknown tag')}
                                             </Badge>
-                                        </span>
+                                        </button>
                                     </CustomTooltip>
                                 ) : (
                                     <CustomTooltip
@@ -240,11 +243,14 @@ function SingleCardItem({
                                             + (detectedTags.length > 12 ? ` (+${detectedTags.length - 12} more)` : '')
                                         }
                                     >
-                                        <span tabIndex={0} className="inline-flex">
+                                        <button
+                                            type="button"
+                                            className="inline-flex rounded-md cursor-default focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-500/40"
+                                        >
                                             <Badge tone="success" icon={<CheckCircle2 size={11} aria-hidden="true" />}>
                                                 {plural(detectedTags.length, 'tag')} OK
                                             </Badge>
-                                        </span>
+                                        </button>
                                     </CustomTooltip>
                                 )
                             ) : (

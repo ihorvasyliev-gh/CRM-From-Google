@@ -1,5 +1,6 @@
 import js from '@eslint/js'
 import globals from 'globals'
+import jsxA11y from 'eslint-plugin-jsx-a11y-x'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
@@ -7,7 +8,7 @@ import tseslint from 'typescript-eslint'
 export default tseslint.config(
     { ignores: ['dist'] },
     {
-        extends: [js.configs.recommended, ...tseslint.configs.recommended],
+        extends: [js.configs.recommended, ...tseslint.configs.recommended, jsxA11y.configs.recommended],
         files: ['**/*.{ts,tsx}'],
         languageOptions: {
             ecmaVersion: 2020,
@@ -24,6 +25,8 @@ export default tseslint.config(
                 { allowConstantExport: true },
             ],
             'react-hooks/set-state-in-effect': 'off',
+            // Modals, popovers, and inline edit inputs intentionally use autoFocus for keyboard workflows
+            'jsx-a11y-x/no-autofocus': 'off',
             '@typescript-eslint/no-explicit-any': 'error',
             '@typescript-eslint/no-unused-vars': [
                 'warn',

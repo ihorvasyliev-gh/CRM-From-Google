@@ -85,6 +85,7 @@ export function ContactActions({
     const iconBtn = `${iconBtnBase} ${touch ? 'w-9 h-9 lg:w-7 lg:h-7' : 'w-7 h-7'}`;
     const size = touch ? 15 : 13;
     return (
+        // eslint-disable-next-line jsx-a11y-x/no-static-element-interactions -- prevents nested contact link/button clicks and keystrokes from bubbling to the parent row
         <div className={`flex items-center gap-0.5 ${className}`} onClick={stop} onKeyDown={stop}>
             {email && copy && (
                 <button type="button" className={iconBtn} onClick={() => copyText(email, 'Email')} title={`Copy email${who}`} aria-label={`Copy email${who}`}>

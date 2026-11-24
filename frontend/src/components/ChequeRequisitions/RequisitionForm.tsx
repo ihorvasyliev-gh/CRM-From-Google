@@ -1089,9 +1089,11 @@ export default function RequisitionForm({
                     {CHECKLIST.map(c => {
                         const hint = checklistHints[c.item];
                         const checked = form.checklist[c.item];
+                        const inputId = `cr-checklist-${c.item}`;
                         return (
                             <label
                                 key={c.item}
+                                htmlFor={inputId}
                                 className={`flex items-start gap-2.5 p-2.5 rounded-xl border cursor-pointer select-none transition-colors ${
                                     checked
                                         ? 'bg-success/5 border-success/30'
@@ -1101,15 +1103,16 @@ export default function RequisitionForm({
                                 }`}
                             >
                                 <input
+                                    id={inputId}
                                     type="checkbox"
                                     checked={checked}
                                     onChange={e => onChange('checklist', { ...form.checklist, [c.item]: e.target.checked })}
                                     className="w-4 h-4 mt-0.5 rounded accent-brand-500 shrink-0"
                                 />
-                                <span className="min-w-0 flex-1">
-                                    <span className="block text-sm font-medium text-primary leading-snug">{c.label}</span>
+                                <span className="min-w-0 flex-1 text-sm font-medium text-primary leading-snug">
+                                    {c.label}
                                     <span
-                                        className={`mt-0.5 flex items-start gap-1 text-[11px] leading-snug ${
+                                        className={`mt-0.5 flex items-start gap-1 text-[11px] font-normal leading-snug ${
                                             hint.ready ? 'text-status-confirmed' : 'text-muted'
                                         }`}
                                     >

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import {
     AlertTriangle, ArrowLeft, CheckCircle2, Download, Eye, FileDown, FileSpreadsheet, Loader2, Pencil, PencilLine, Printer, Save, Search, Users, X,
 } from 'lucide-react';
@@ -59,6 +59,7 @@ function allOf(sheet: SheetData | null): Set<number> {
 }
 
 export default function FillView({ template, initialWorkbook = null, initialSheetIndex, canManage, onBack, onEdit }: FillViewProps) {
+    const idPrefix = useId();
     const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
     const [pdfError, setPdfError] = useState<string | null>(null);
     const wanted = useMemo(() => templateColumns(template.fields, template.settings), [template]);
@@ -367,14 +368,14 @@ export default function FillView({ template, initialWorkbook = null, initialShee
                             </label>
                             {dateColumn >= 0 && (
                                 <div className="flex items-end gap-2">
-                                    <label>
-                                        <span className="block text-xs font-semibold text-muted mb-1">Sent in from</span>
-                                        <DateInput value={from} onChange={setFrom} max={to || undefined} placeholder="Any day" className={`${fieldCls} h-10 text-sm w-40`} />
-                                    </label>
-                                    <label>
-                                        <span className="block text-xs font-semibold text-muted mb-1">to</span>
-                                        <DateInput value={to} onChange={setTo} min={from || undefined} placeholder="Any day" className={`${fieldCls} h-10 text-sm w-40`} />
-                                    </label>
+                                    <div>
+                                        <label htmlFor={`${idPrefix}-from`} className="block text-xs font-semibold text-muted mb-1">Sent in from</label>
+                                        <DateInput id={`${idPrefix}-from`} value={from} onChange={setFrom} max={to || undefined} placeholder="Any day" className={`${fieldCls} h-10 text-sm w-40`} />
+                                    </div>
+                                    <div>
+                                        <label htmlFor={`${idPrefix}-to`} className="block text-xs font-semibold text-muted mb-1">to</label>
+                                        <DateInput id={`${idPrefix}-to`} value={to} onChange={setTo} min={from || undefined} placeholder="Any day" className={`${fieldCls} h-10 text-sm w-40`} />
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -511,17 +512,15 @@ export default function FillView({ template, initialWorkbook = null, initialShee
                             ] as const).map(o => (
                                 <label
                                     key={o.value}
-                                    className={`flex items-start gap-3 rounded-xl border p-3 cursor-pointer transition-colors ${
+                                    className={`grid grid-cols-[auto_1fr] items-start gap-x-3 rounded-xl border p-3 cursor-pointer transition-colors ${
                                         output === o.value ? 'border-brand-500 bg-brand-500/6 ring-1 ring-brand-500/40' : 'border-border-subtle hover:border-brand-500/40'
                                     }`}
                                 >
-                                    <input type="radio" name="output" value={o.value} checked={output === o.value} onChange={() => setOutput(o.value)} className="mt-1 accent-brand-500 w-4 h-4" />
-                                    <span>
-                                        <span className="flex items-center gap-1.5 text-sm font-semibold text-primary">
-                                            <o.icon size={15} /> {o.title}
-                                        </span>
-                                        <span className="block text-xs text-muted mt-0.5">{o.text}</span>
+                                    <input type="radio" name="output" value={o.value} checked={output === o.value} onChange={() => setOutput(o.value)} className="row-span-2 mt-1 accent-brand-500 w-4 h-4" />
+                                    <span className="flex items-center gap-1.5 text-sm font-semibold text-primary">
+                                        <o.icon size={15} /> {o.title}
                                     </span>
+                                    <span className="block text-xs text-muted mt-0.5">{o.text}</span>
                                 </label>
                             ))}
                         </fieldset>

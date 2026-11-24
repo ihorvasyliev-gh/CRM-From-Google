@@ -564,7 +564,9 @@ function RosterRow({
         <div
             data-row
             data-testid="roster-row"
+            role="button"
             tabIndex={0}
+            aria-label={`Open ${name}`}
             onClick={e => {
                 if (e.shiftKey || e.metaKey || e.ctrlKey) { e.preventDefault(); onToggle(e.shiftKey); return; }
                 onOpen();

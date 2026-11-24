@@ -422,9 +422,9 @@ export default function CommandPalette({
                 subtitle: s.email || s.phone || (s.eircode ? `Eircode: ${s.eircode}` : 'Student record'),
                 category: 'Students',
                 icon: (
-                    <div className={`w-5 h-5 rounded-full bg-linear-to-br ${getAvatarGradient(s.id)} flex items-center justify-center text-[10px] text-white font-bold`}>
+                    <span className={`w-5 h-5 rounded-full bg-linear-to-br ${getAvatarGradient(s.id)} flex items-center justify-center text-[10px] text-white font-bold`}>
                         {(s.first_name?.[0] || 'S').toUpperCase()}
-                    </div>
+                    </span>
                 ),
                 onSelect: () => {
                     onClose();
@@ -537,23 +537,25 @@ export default function CommandPalette({
                                         const isSelected = globalIndex === selectedIndex;
 
                                         return (
-                                            <div
+                                            <button
+                                                type="button"
                                                 key={item.id}
                                                 data-index={globalIndex}
                                                 onClick={() => item.onSelect()}
                                                 onMouseEnter={() => setSelectedIndex(globalIndex)}
-                                                className={`flex items-center justify-between px-3 py-2 rounded-xl text-sm cursor-pointer transition-all ${
+                                                onFocus={() => setSelectedIndex(globalIndex)}
+                                                className={`w-full text-left flex items-center justify-between px-3 py-2 rounded-xl text-sm cursor-pointer transition-all ${
                                                     isSelected
                                                         ? 'bg-brand-500/10 text-brand-500 font-medium'
                                                         : 'hover:bg-surface/80 text-primary'
                                                 }`}
                                             >
-                                                <div className="flex items-center gap-3 min-w-0 pr-2">
+                                                <span className="flex items-center gap-3 min-w-0 pr-2">
                                                     <span className={`shrink-0 ${isSelected ? 'text-brand-500' : 'text-muted'}`}>
                                                         {item.icon}
                                                     </span>
-                                                    <div className="min-w-0">
-                                                        <div className="text-sm font-semibold truncate flex items-center gap-2">
+                                                    <span className="min-w-0 block">
+                                                        <span className="text-sm font-semibold truncate flex items-center gap-2">
                                                             <span className={isSelected ? 'text-brand-500' : 'text-primary'}>
                                                                 {item.title}
                                                             </span>
@@ -562,16 +564,16 @@ export default function CommandPalette({
                                                                     {item.badge}
                                                                 </span>
                                                             )}
-                                                        </div>
+                                                        </span>
                                                         {item.subtitle && (
-                                                            <p className="text-xs text-muted truncate">
+                                                            <span className="block text-xs text-muted truncate font-normal">
                                                                 {item.subtitle}
-                                                            </p>
+                                                            </span>
                                                         )}
-                                                    </div>
-                                                </div>
+                                                    </span>
+                                                </span>
 
-                                                <div className="flex items-center gap-2 shrink-0">
+                                                <span className="flex items-center gap-2 shrink-0">
                                                     {item.shortcut && (
                                                         <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold text-muted bg-surface border border-border-subtle rounded-md">
                                                             {item.shortcut}
@@ -580,8 +582,8 @@ export default function CommandPalette({
                                                     {isSelected && (
                                                         <CornerDownLeft size={14} className="text-brand-500" />
                                                     )}
-                                                </div>
-                                            </div>
+                                                </span>
+                                            </button>
                                         );
                                     })}
                                 </div>

@@ -462,6 +462,7 @@ function App() {
                 {overlayMounted && (
                     <div
                         ref={overlayRef}
+                        aria-hidden="true"
                         className={`fixed inset-0 bg-black/40 dark:bg-black/60 z-55 lg:hidden ${overlayClosing ? 'animate-fadeOut pointer-events-none' : 'animate-fadeIn'}`}
                         onClick={() => setSidebarOpen(false)}
                     />

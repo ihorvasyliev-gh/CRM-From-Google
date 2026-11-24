@@ -343,6 +343,7 @@ function DocxPages({
         <>
             {pageWidth === null && <p className="text-xs text-muted p-2">Laying out the invoice…</p>}
             {/* Laid out unseen at full size first, for the tab stops; in Fit mode never widens the panel */}
+            {/* eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-static-element-interactions -- rendered .docx text-selection surface; form fields remain directly editable by keyboard */}
             <div onClick={pickText} className={`${contain ? '[contain:inline-size]' : ''} ${pick ? 'cursor-text' : ''} ${pageWidth === null ? 'h-0 overflow-hidden invisible' : ''}`}>
                 <div
                     ref={hostRef}

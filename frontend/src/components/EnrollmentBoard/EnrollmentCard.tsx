@@ -218,11 +218,16 @@ const EnrollmentCardBody = function EnrollmentCardBody({
             if (isSmallScreen) return; // Don't dismiss bottom action sheet on scroll
             setShowQuickMove(false);
         };
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (!isSmallScreen && e.key === 'Escape') setShowQuickMove(false);
+        };
         window.addEventListener('scroll', handleDismiss, true);
         window.addEventListener('resize', handleDismiss);
+        document.addEventListener('keydown', handleKeyDown);
         return () => {
             window.removeEventListener('scroll', handleDismiss, true);
             window.removeEventListener('resize', handleDismiss);
+            document.removeEventListener('keydown', handleKeyDown);
         };
     }, [showQuickMove, isSmallScreen]);
 
@@ -402,6 +407,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
     const hasEmail = Boolean(enrollment.students?.email?.trim());
 
     return (
+        // eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-noninteractive-element-interactions -- pointer shortcut to select card; keyboard selection uses the avatar checkbox inside
         <div
             ref={isOverlay || isMobile ? undefined : dragRef}
             style={style}
@@ -728,6 +734,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
 
             {/* Inline Quick Note Editor */}
             {isEditingNote && (
+                // eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-static-element-interactions -- event-bubbling barrier so clicks inside the editor do not select the card
                 <div
                     className="mt-2 p-2.5 rounded-xl bg-surface-elevated border border-amber-500/40 shadow-card animate-fadeIn cursor-default select-text"
                     onClick={e => e.stopPropagation()}
@@ -857,7 +864,12 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                         exit="animate-sheetSlideDown"
                     >
                         {/* Drag Handle Bar */}
-                        <div className="w-12 h-1.5 bg-muted/30 rounded-full mx-auto cursor-pointer" onClick={() => setShowQuickMove(false)} />
+                        <button
+                            type="button"
+                            aria-label="Close move sheet"
+                            className="block w-12 h-1.5 bg-muted/30 rounded-full mx-auto cursor-pointer border-0 p-0"
+                            onClick={() => setShowQuickMove(false)}
+                        />
 
                         {/* Sheet Header */}
                         <div className="flex items-center justify-between px-1 pb-2 border-b border-border-subtle">
@@ -935,69 +947,77 @@ const EnrollmentCardBody = function EnrollmentCardBody({
             )}
 
             {/* Quick move: a dropdown on larger screens */}
-            {showQuickMove && !isSmallScreen && popoverPos && createPortal(
-                <div
-                    className="fixed inset-0 z-9999 bg-transparent"
-                    onClick={(e) => { e.stopPropagation(); setShowQuickMove(false); }}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onTouchStart={(e) => e.stopPropagation()}
-                >
-                    <div
-                        style={{
-                            position: 'fixed',
-                            top: `${popoverPos.top}px`,
-                            left: `${popoverPos.left}px`,
-                        }}
-                        onClick={e => e.stopPropagation()}
-                        onPointerDown={e => e.stopPropagation()}
-                        className={`w-44 bg-surface border border-border-subtle rounded-xl shadow-float p-1.5 space-y-1 z-10000 animate-popoverScaleIn ${popoverPos?.isAbove ? 'origin-bottom-right' : 'origin-top-right'}`}
-                    >
-                        <div className="px-2 py-1 text-xs font-bold text-muted uppercase tracking-wider border-b border-border-subtle flex justify-between items-center">
-                            <span>Move to Status</span>
-                            <button
+            {showQuickMove && !isSmallScreen && popoverPos && (
+                <StopCardEvents>
+                    {createPortal(
+                        <>
+                            <div
+                                aria-hidden="true"
+                                className="fixed inset-0 z-9999 bg-transparent"
                                 onClick={() => setShowQuickMove(false)}
-                                className="text-muted hover:text-primary p-0.5 rounded-sm transition-colors"
+                            />
+                            <div
+                                role="dialog"
+                                aria-label="Move to Status"
+                                style={{
+                                    position: 'fixed',
+                                    top: `${popoverPos.top}px`,
+                                    left: `${popoverPos.left}px`,
+                                }}
+                                className={`w-44 bg-surface border border-border-subtle rounded-xl shadow-float p-1.5 space-y-1 z-10000 animate-popoverScaleIn ${popoverPos?.isAbove ? 'origin-bottom-right' : 'origin-top-right'}`}
                             >
-                                <X size={12} />
-                            </button>
-                        </div>
-                        <div className="py-1 space-y-0.5 overflow-y-auto">
-                            {(status === 'confirmed' || status === 'invited') && (
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setShowQuickMove(false);
-                                        onMoveStatus?.(enrollment.id, status, status);
-                                    }}
-                                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-brand-600 dark:text-brand-400 hover:bg-brand-500/10 transition-colors text-left cursor-pointer border-b border-border-subtle/70 mb-1 pb-2"
-                                >
-                                    <Calendar size={13} className="shrink-0" />
-                                    <span>{status === 'confirmed' ? 'Change date…' : 'Re-invite / date…'}</span>
-                                </button>
-                            )}
-                            {MOVE_TARGETS.map(st => {
-                                if (st === status) return null;
-                                const stCfg = STATUS_CONFIG[st];
-                                if (!stCfg) return null;
-                                return (
+                                <div className="px-2 py-1 text-xs font-bold text-muted uppercase tracking-wider border-b border-border-subtle flex justify-between items-center">
+                                    <span>Move to Status</span>
                                     <button
-                                        key={st}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setShowQuickMove(false);
-                                            onMoveStatus?.(enrollment.id, status, st);
-                                        }}
-                                        className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-primary hover:bg-surface-elevated active:bg-brand-500/10 transition-colors text-left cursor-pointer"
+                                        type="button"
+                                        aria-label="Close"
+                                        onClick={() => setShowQuickMove(false)}
+                                        className="text-muted hover:text-primary p-0.5 rounded-sm transition-colors"
                                     >
-                                        <span className={`${stCfg.color} flex items-center`}>{stCfg.icon}</span>
-                                        <span>{stCfg.label}</span>
+                                        <X size={12} />
                                     </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-                </div>,
-                document.body
+                                </div>
+                                <div className="py-1 space-y-0.5 overflow-y-auto">
+                                    {(status === 'confirmed' || status === 'invited') && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setShowQuickMove(false);
+                                                onMoveStatus?.(enrollment.id, status, status);
+                                            }}
+                                            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-brand-600 dark:text-brand-400 hover:bg-brand-500/10 transition-colors text-left cursor-pointer border-b border-border-subtle/70 mb-1 pb-2"
+                                        >
+                                            <Calendar size={13} className="shrink-0" />
+                                            <span>{status === 'confirmed' ? 'Change date…' : 'Re-invite / date…'}</span>
+                                        </button>
+                                    )}
+                                    {MOVE_TARGETS.map(st => {
+                                        if (st === status) return null;
+                                        const stCfg = STATUS_CONFIG[st];
+                                        if (!stCfg) return null;
+                                        return (
+                                            <button
+                                                type="button"
+                                                key={st}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setShowQuickMove(false);
+                                                    onMoveStatus?.(enrollment.id, status, st);
+                                                }}
+                                                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-primary hover:bg-surface-elevated active:bg-brand-500/10 transition-colors text-left cursor-pointer"
+                                            >
+                                                <span className={`${stCfg.color} flex items-center`}>{stCfg.icon}</span>
+                                                <span>{stCfg.label}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </>,
+                        document.body
+                    )}
+                </StopCardEvents>
             )}
         </div>
     );
@@ -1010,6 +1030,7 @@ const stopEvent = (e: SyntheticEvent) => e.stopPropagation();
  * presses from starting a drag or a card action. (Keys still bubble: Escape is handled on document.)
  */
 function StopCardEvents({ children }: { children: ReactNode }) {
+    // eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-static-element-interactions -- event-bubbling barrier for portaled dialogs inside a clickable/draggable card
     return <span className="contents" onClick={stopEvent} onPointerDown={stopEvent} onTouchStart={stopEvent}>{children}</span>;
 }
 

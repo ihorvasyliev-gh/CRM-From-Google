@@ -528,94 +528,98 @@ export default function StudentList({ onNavigate, onOpenStudentDetail }: Student
                             {displayedStudents.map(student => {
                                 const isSelected = selected.has(student.id);
                                 return (
-                                    <li
-                                        key={student.id}
-                                        onClick={() => onOpenStudentDetail ? onOpenStudentDetail(student, { onEdit: openEdit, onDelete: setDeleteTarget }) : setDetailStudent(student)}
-                                        tabIndex={0}
-                                        onKeyDown={e => {
-                                            if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
-                                                e.preventDefault();
-                                                if (onOpenStudentDetail) onOpenStudentDetail(student, { onEdit: openEdit, onDelete: setDeleteTarget });
-                                                else setDetailStudent(student);
-                                            }
-                                        }}
-                                        className={`px-4 py-3.5 cursor-pointer transition-colors flex gap-3 outline-hidden focus-visible:bg-surface-elevated/60 ${isSelected ? 'bg-brand-500/5' : 'hover:bg-surface-elevated/50 active:bg-surface-elevated'}`}
-                                    >
-                                        <div className="pt-3">
-                                            <SelectBox checked={isSelected} onToggle={() => toggleSelected(student)} label={`Select ${fullName(student)}`} />
-                                        </div>
-                                        <div className="flex-1 min-w-0 flex flex-col gap-2.5">
-                                            <div className="flex items-start justify-between gap-2.5">
-                                                <div className="flex items-center gap-3 min-w-0">
-                                                    <div className={`w-10 h-10 bg-linear-to-br ${getAvatarGradient(student.id)} rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0`}>
-                                                        {initialsOf(student)}
-                                                    </div>
-                                                    <div className="min-w-0">
-                                                        <p className="font-semibold text-primary text-sm leading-tight truncate">
-                                                            {student.first_name} {student.last_name}
-                                                        </p>
-                                                        <p className="text-xs text-muted truncate mt-0.5">{student.email}</p>
-                                                        {student.created_at && (
-                                                            <span className="text-xs text-muted block mt-0.5">
-                                                                Joined {formatDisplayDate(student.created_at)}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-0.5 shrink-0" onClick={e => e.stopPropagation()}>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => { setEnrollStudentId(student.id); setEnrollModalOpen(true); }}
-                                                        className="h-8 px-2 text-brand-600 dark:text-brand-400 bg-brand-500/10 hover:bg-brand-500/15 rounded-lg transition-colors text-xs font-semibold flex items-center gap-1"
-                                                        title="Enroll student in course"
-                                                        aria-label={`Enroll ${fullName(student)} in a course`}
-                                                    >
-                                                        <Plus size={14} />
-                                                        <span className="hidden xs:inline">Enroll</span>
-                                                    </button>
-                                                    <IconButton size="sm" tone="brand" label="Edit student" onClick={() => openEdit(student)}>
-                                                        <Edit2 size={14} />
-                                                    </IconButton>
-                                                    <IconButton size="sm" tone="danger" label="Delete student" onClick={() => setDeleteTarget(student)}>
-                                                        <Trash2 size={14} />
-                                                    </IconButton>
-                                                </div>
+                                    <li key={student.id}>
+                                        <div
+                                            role="button"
+                                            tabIndex={0}
+                                            onClick={() => onOpenStudentDetail ? onOpenStudentDetail(student, { onEdit: openEdit, onDelete: setDeleteTarget }) : setDetailStudent(student)}
+                                            onKeyDown={e => {
+                                                if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
+                                                    e.preventDefault();
+                                                    if (onOpenStudentDetail) onOpenStudentDetail(student, { onEdit: openEdit, onDelete: setDeleteTarget });
+                                                    else setDetailStudent(student);
+                                                }
+                                            }}
+                                            className={`px-4 py-3.5 cursor-pointer transition-colors flex gap-3 outline-hidden focus-visible:bg-surface-elevated/60 ${isSelected ? 'bg-brand-500/5' : 'hover:bg-surface-elevated/50 active:bg-surface-elevated'}`}
+                                        >
+                                            <div className="pt-3">
+                                                <SelectBox checked={isSelected} onToggle={() => toggleSelected(student)} label={`Select ${fullName(student)}`} />
                                             </div>
-
-                                            <div className="pl-[52px]">
-                                                <StudentCourses enrollments={enrollmentsByStudent.get(student.id)} loading={enrollmentsLoading} />
-                                            </div>
-
-                                            {(student.phone || student.dob || student.eircode) && (
-                                                <div className="flex flex-wrap items-center gap-1.5 pl-[52px] text-xs" onClick={e => e.stopPropagation()}>
-                                                    {student.phone && (
-                                                        <>
-                                                            <a
-                                                                href={formatPhoneForCall(student.phone) || undefined}
-                                                                className="inline-flex items-center gap-1 h-6 px-2 text-primary font-medium bg-surface-elevated hover:bg-border-subtle rounded-md border border-border-subtle transition-colors"
-                                                            >
-                                                                <Phone size={11} className="text-muted" />
-                                                                <span className="tabular-nums">{formatPhoneDisplay(student.phone)}</span>
-                                                            </a>
-                                                            {formatPhoneForWhatsApp(student.phone) && (
-                                                                <CustomTooltip content="Chat on WhatsApp">
-                                                                    <a
-                                                                        href={formatPhoneForWhatsApp(student.phone)!}
-                                                                        target="_blank"
-                                                                        rel="noopener noreferrer"
-                                                                        className="hit-area inline-flex items-center justify-center w-6 h-6 text-status-confirmed bg-success/10 hover:bg-success/20 border border-success/25 rounded-md transition-colors"
-                                                                        title="Chat on WhatsApp"
-                                                                    >
-                                                                        <MessageSquare size={12} />
-                                                                    </a>
-                                                                </CustomTooltip>
+                                            <div className="flex-1 min-w-0 flex flex-col gap-2.5">
+                                                <div className="flex items-start justify-between gap-2.5">
+                                                    <div className="flex items-center gap-3 min-w-0">
+                                                        <div className={`w-10 h-10 bg-linear-to-br ${getAvatarGradient(student.id)} rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0`}>
+                                                            {initialsOf(student)}
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <p className="font-semibold text-primary text-sm leading-tight truncate">
+                                                                {student.first_name} {student.last_name}
+                                                            </p>
+                                                            <p className="text-xs text-muted truncate mt-0.5">{student.email}</p>
+                                                            {student.created_at && (
+                                                                <span className="text-xs text-muted block mt-0.5">
+                                                                    Joined {formatDisplayDate(student.created_at)}
+                                                                </span>
                                                             )}
-                                                        </>
-                                                    )}
-                                                    {student.eircode && <Badge className="font-mono">{student.eircode}</Badge>}
-                                                    {student.dob && <Badge>DOB: {formatDisplayDate(student.dob)}</Badge>}
+                                                        </div>
+                                                    </div>
+                                                    {/* eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-static-element-interactions -- prevents nested action clicks from opening the student card */}
+                                                    <div className="flex items-center gap-0.5 shrink-0" onClick={e => e.stopPropagation()}>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => { setEnrollStudentId(student.id); setEnrollModalOpen(true); }}
+                                                            className="h-8 px-2 text-brand-600 dark:text-brand-400 bg-brand-500/10 hover:bg-brand-500/15 rounded-lg transition-colors text-xs font-semibold flex items-center gap-1"
+                                                            title="Enroll student in course"
+                                                            aria-label={`Enroll ${fullName(student)} in a course`}
+                                                        >
+                                                            <Plus size={14} />
+                                                            <span className="hidden xs:inline">Enroll</span>
+                                                        </button>
+                                                        <IconButton size="sm" tone="brand" label="Edit student" onClick={() => openEdit(student)}>
+                                                            <Edit2 size={14} />
+                                                        </IconButton>
+                                                        <IconButton size="sm" tone="danger" label="Delete student" onClick={() => setDeleteTarget(student)}>
+                                                            <Trash2 size={14} />
+                                                        </IconButton>
+                                                    </div>
                                                 </div>
-                                            )}
+
+                                                <div className="pl-[52px]">
+                                                    <StudentCourses enrollments={enrollmentsByStudent.get(student.id)} loading={enrollmentsLoading} />
+                                                </div>
+
+                                                {(student.phone || student.dob || student.eircode) && (
+                                                    // eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-static-element-interactions -- prevents nested contact link clicks from opening the student card
+                                                    <div className="flex flex-wrap items-center gap-1.5 pl-[52px] text-xs" onClick={e => e.stopPropagation()}>
+                                                        {student.phone && (
+                                                            <>
+                                                                <a
+                                                                    href={formatPhoneForCall(student.phone) || undefined}
+                                                                    className="inline-flex items-center gap-1 h-6 px-2 text-primary font-medium bg-surface-elevated hover:bg-border-subtle rounded-md border border-border-subtle transition-colors"
+                                                                >
+                                                                    <Phone size={11} className="text-muted" />
+                                                                    <span className="tabular-nums">{formatPhoneDisplay(student.phone)}</span>
+                                                                </a>
+                                                                {formatPhoneForWhatsApp(student.phone) && (
+                                                                    <CustomTooltip content="Chat on WhatsApp">
+                                                                        <a
+                                                                            href={formatPhoneForWhatsApp(student.phone)!}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            className="hit-area inline-flex items-center justify-center w-6 h-6 text-status-confirmed bg-success/10 hover:bg-success/20 border border-success/25 rounded-md transition-colors"
+                                                                            title="Chat on WhatsApp"
+                                                                        >
+                                                                            <MessageSquare size={12} />
+                                                                        </a>
+                                                                    </CustomTooltip>
+                                                                )}
+                                                            </>
+                                                        )}
+                                                        {student.eircode && <Badge className="font-mono">{student.eircode}</Badge>}
+                                                        {student.dob && <Badge>DOB: {formatDisplayDate(student.dob)}</Badge>}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     </li>
                                 );
@@ -660,6 +664,7 @@ export default function StudentList({ onNavigate, onOpenStudentDetail }: Student
                                                 </td>
                                                 <td className={tdCls}>
                                                     {student.phone ? (
+                                                        // eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-static-element-interactions -- prevents nested contact link clicks from opening the student row
                                                         <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
                                                             <a href={formatPhoneForCall(student.phone) || undefined} className="text-[13px] text-primary tabular-nums whitespace-nowrap hover:text-brand-600 dark:hover:text-brand-400">
                                                                 {formatPhoneDisplay(student.phone)}
@@ -692,6 +697,7 @@ export default function StudentList({ onNavigate, onOpenStudentDetail }: Student
                                                     {student.created_at ? formatDisplayDate(student.created_at) : '—'}
                                                 </td>
                                                 <td className={tdCls}>
+                                                    {/* eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-static-element-interactions -- prevents nested row action clicks from opening the student row */}
                                                     <div className="flex items-center justify-end gap-0.5 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
                                                         <IconButton size="sm" tone="brand" label="Enroll in a course" onClick={() => { setEnrollStudentId(student.id); setEnrollModalOpen(true); }}>
                                                             <Plus size={15} />

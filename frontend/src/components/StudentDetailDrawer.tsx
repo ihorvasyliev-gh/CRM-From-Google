@@ -246,12 +246,15 @@ export default function StudentDetailDrawer({ studentId, onClose, onPrev, onNext
                         <div className="min-w-0">
                             {student ? (
                                 <>
-                                    <h2
-                                        onClick={() => copyText(name, 'Name')}
-                                        className="font-bold text-primary text-lg leading-tight truncate cursor-copy hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
-                                        title="Copy name"
-                                    >
-                                        {name}
+                                    <h2 className="font-bold text-primary text-lg leading-tight truncate">
+                                        <button
+                                            type="button"
+                                            onClick={() => copyText(name, 'Name')}
+                                            className="max-w-full truncate text-left cursor-copy hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+                                            title="Copy name"
+                                        >
+                                            {name}
+                                        </button>
                                     </h2>
                                     <p className="text-xs text-muted mt-0.5">
                                         Registered {formatDisplayDate(student.created_at)} · {relativeDay(student.created_at.slice(0, 10))}

@@ -789,6 +789,7 @@ export default function ChequeRequisitions() {
                                                             {gross !== null ? `€${formatAmount(gross)}` : '—'}
                                                         </span>
 
+                                                        {/* eslint-disable-next-line jsx-a11y-x/no-static-element-interactions -- event-bubbling barrier so download button clicks (even while disabled) do not open the row */}
                                                         <div
                                                             className="shrink-0"
                                                             onClick={e => e.stopPropagation()}

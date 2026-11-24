@@ -174,6 +174,7 @@ function InlineEditField({
 
     if (editing && type === 'date') {
         return (
+            // eslint-disable-next-line jsx-a11y-x/no-static-element-interactions -- catches Escape/Enter bubbling from child date picker buttons
             <div className="p-2.5 rounded-xl bg-brand-500/5 border border-brand-500/20" onKeyDown={handleKeyDown}>
                 <div className="flex items-center gap-3 mb-2">
                     <span className="text-brand-500 shrink-0">{icon}</span>
@@ -222,28 +223,31 @@ function InlineEditField({
     }
 
     return (
-        <div
-            className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface transition-all cursor-pointer group"
-            onClick={() => {
-                if (value) {
-                    onCopy(displayValue || value, label);
-                }
-            }}
-            title="Click to copy to clipboard"
-        >
-            <span className="text-muted">{icon}</span>
-            <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted font-medium">{label}</p>
-                <p className="text-sm text-primary">{displayValue || value || <span className="text-muted italic">Not set</span>}</p>
-            </div>
+        <div className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface transition-all group">
+            <button
+                type="button"
+                className="flex items-center gap-3 flex-1 min-w-0 text-left cursor-pointer"
+                onClick={() => {
+                    if (value) {
+                        onCopy(displayValue || value, label);
+                    }
+                }}
+                title="Click to copy to clipboard"
+            >
+                <span className="text-muted">{icon}</span>
+                <span className="flex-1 min-w-0">
+                    <span className="block text-xs text-muted font-medium">{label}</span>
+                    <span className="block text-sm text-primary">{displayValue || value || <span className="text-muted italic">Not set</span>}</span>
+                </span>
+            </button>
             {extraActions && (
-                <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center gap-1">
                     {extraActions}
                 </div>
             )}
             <button
-                onClick={(e) => {
-                    e.stopPropagation();
+                type="button"
+                onClick={() => {
                     setEditValue(value);
                     setEditing(true);
                 }}
@@ -567,12 +571,15 @@ export default function StudentDetail({ open = true, student: openedWith, onClos
                                 {(student.first_name?.[0] || '').toUpperCase()}{(student.last_name?.[0] || '').toUpperCase()}
                             </div>
                             <div>
-                                <h2 
-                                    onClick={() => handleCopyField(fullName(student), 'Name')}
-                                    className="font-bold text-primary cursor-pointer hover:text-brand-500 dark:hover:text-brand-400 transition-colors"
-                                    title="Click to copy name to clipboard"
-                                >
-                                    {student.first_name} {student.last_name}
+                                <h2 className="font-bold text-primary">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleCopyField(fullName(student), 'Name')}
+                                        className="text-left cursor-pointer hover:text-brand-500 dark:hover:text-brand-400 transition-colors"
+                                        title="Click to copy name to clipboard"
+                                    >
+                                        {student.first_name} {student.last_name}
+                                    </button>
                                 </h2>
                                 <p className="text-xs text-muted">{enrollments.length} enrollment{enrollments.length !== 1 ? 's' : ''}</p>
                             </div>

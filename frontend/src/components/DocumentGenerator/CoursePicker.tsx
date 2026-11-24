@@ -131,10 +131,17 @@ export default function CoursePicker({ courses, counts, countLabel, value, onCha
                                     id={`${listId}-${i}`}
                                     data-index={i}
                                     role="option"
+                                    tabIndex={-1}
                                     aria-selected={isSelected}
                                     onMouseEnter={() => setActive(i)}
                                     onMouseDown={e => e.preventDefault()}
                                     onClick={() => pick(c)}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            pick(c);
+                                        }
+                                    }}
                                     className={`w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-left text-sm cursor-pointer transition-colors ${
                                         isSelected ? 'text-brand-600 dark:text-brand-400 font-medium' : 'text-primary'
                                     } ${i === safeActive ? 'bg-surface-elevated' : ''}`}

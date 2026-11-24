@@ -111,6 +111,7 @@ export default function Menu({ items, label, children, triggerClassName, placeme
                 <div
                     ref={menuRef}
                     role="menu"
+                    tabIndex={-1}
                     aria-label={label}
                     onKeyDown={onMenuKeyDown}
                     style={style}

@@ -248,6 +248,7 @@ function StudentRow({ student, onOpen, active }: { student: ViewerStudentDirecto
         <div
             data-row
             data-testid="student-row"
+            role="button"
             tabIndex={0}
             onClick={onOpen}
             onKeyDown={onKeyDown}

@@ -289,13 +289,13 @@ function WordTemplateRow({
                                 <>
                                     <span aria-hidden="true">·</span>
                                     <CustomTooltip content={usedByCourses.map(c => c.name).join('\n')}>
-                                        <span
-                                            tabIndex={0}
-                                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-brand-500/10 text-brand-600 dark:text-brand-400 font-medium cursor-default"
+                                        <button
+                                            type="button"
+                                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-brand-500/10 text-brand-600 dark:text-brand-400 font-medium cursor-default focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-500/40"
                                         >
                                             <Layers size={11} aria-hidden="true" />
                                             Used in {plural(usedByCourses.length, 'course preset')}
-                                        </span>
+                                        </button>
                                     </CustomTooltip>
                                 </>
                             )}
@@ -321,23 +321,26 @@ function WordTemplateRow({
                                 })}
                                 {extraTags.length > 0 && (
                                     <CustomTooltip content={extraTags.map(t => `{${t}}`).join(', ')}>
-                                        <span
-                                            tabIndex={0}
-                                            className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-surface-elevated border border-border-subtle text-muted text-[11px] font-medium tabular-nums cursor-default"
+                                        <button
+                                            type="button"
+                                            className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-surface-elevated border border-border-subtle text-muted text-[11px] font-medium tabular-nums cursor-default focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-500/40"
                                         >
                                             +{extraTags.length}
-                                        </span>
+                                        </button>
                                     </CustomTooltip>
                                 )}
                                 {unknownTags.length > 0 && (
                                     <CustomTooltip
                                         content={`Will print blank unless added as custom variables:\n${unknownTags.map(t => `{${t}}`).join(', ')}`}
                                     >
-                                        <span tabIndex={0} className="inline-flex">
+                                        <button
+                                            type="button"
+                                            className="inline-flex rounded-md cursor-default focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-500/40"
+                                        >
                                             <Badge tone="warning" icon={<AlertTriangle size={11} aria-hidden="true" />}>
                                                 {plural(unknownTags.length, 'unknown tag')}
                                             </Badge>
-                                        </span>
+                                        </button>
                                     </CustomTooltip>
                                 )}
                             </div>

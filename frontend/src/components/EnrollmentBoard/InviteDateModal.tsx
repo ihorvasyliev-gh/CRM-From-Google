@@ -132,28 +132,29 @@ export default function InviteDateModal({ inviteFlow, optedOutEmails = EMPTY_OPT
                     </div>
                 )}
 
-                <label className="flex items-start gap-3 mb-4 p-3 rounded-xl border border-border-subtle bg-surface cursor-pointer select-none hover:border-blue-300 transition-colors">
+                <label
+                    htmlFor="invite-multi-date"
+                    className="grid grid-cols-[auto_1fr] items-start gap-x-3 mb-4 p-3 rounded-xl border border-border-subtle bg-surface cursor-pointer select-none hover:border-blue-300 transition-colors"
+                >
                     <input
                         type="checkbox"
                         id="invite-multi-date"
                         checked={inviteFlow.multiDate}
                         onChange={e => inviteFlow.setMultiDate(e.target.checked)}
-                        className="mt-0.5 rounded-sm border-border-subtle text-blue-600 focus:ring-blue-500/20"
+                        className="row-span-2 mt-0.5 rounded-sm border-border-subtle text-blue-600 focus:ring-blue-500/20"
                     />
-                    <span className="min-w-0">
-                        <span className="flex items-center gap-1.5 text-sm font-semibold text-primary">
-                            <CalendarRange size={14} className="text-blue-500" /> Multiple dates
-                        </span>
-                        <span className="block text-xs text-muted mt-0.5">
-                            Same course in several groups — the student chooses a date on the confirmation page.
-                        </span>
+                    <span className="min-w-0 flex items-center gap-1.5 text-sm font-semibold text-primary">
+                        <CalendarRange size={14} className="text-blue-500" /> Multiple dates
+                    </span>
+                    <span className="min-w-0 block text-xs text-muted mt-0.5">
+                        Same course in several groups — the student chooses a date on the confirmation page.
                     </span>
                 </label>
 
                 {inviteFlow.savedInviteDates.length > 0 && (
                     <div className="mb-4">
-                        <label className="block text-xs font-medium text-muted mb-2">Saved dates</label>
-                        <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                        <p id="invite-saved-dates-label" className="text-xs font-medium text-muted mb-2">Saved dates</p>
+                        <div role="group" aria-labelledby="invite-saved-dates-label" className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                             {inviteFlow.savedInviteDates.map(d => {
                                 const stats = inviteFlow.getDateStats(d);
                                 const isSelected = inviteFlow.multiDate

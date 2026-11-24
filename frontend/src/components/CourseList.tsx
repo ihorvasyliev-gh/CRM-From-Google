@@ -386,19 +386,19 @@ export default function CourseList() {
                                                 </p>
                                             </div>
                                         </div>
-                                        <div className="flex gap-0.5 shrink-0" onClick={e => e.stopPropagation()}>
-                                            <IconButton size="sm" tone="brand" label={`Edit ${course.name}`} onClick={() => { setEditingCourse(course); setModalOpen(true); }}>
+                                        <div className="flex gap-0.5 shrink-0">
+                                            <IconButton size="sm" tone="brand" label={`Edit ${course.name}`} onClick={e => { e.stopPropagation(); setEditingCourse(course); setModalOpen(true); }}>
                                                 <Edit2 size={14} />
                                             </IconButton>
                                             <IconButton
                                                 size="sm"
                                                 tone="default"
                                                 label={isArchived ? `Restore ${course.name}` : `Archive ${course.name}`}
-                                                onClick={() => void toggleArchiveCourse(course)}
+                                                onClick={e => { e.stopPropagation(); void toggleArchiveCourse(course); }}
                                             >
                                                 {isArchived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
                                             </IconButton>
-                                            <IconButton size="sm" tone="danger" label={`Delete ${course.name}`} onClick={() => setDeleteTarget(course)}>
+                                            <IconButton size="sm" tone="danger" label={`Delete ${course.name}`} onClick={e => { e.stopPropagation(); setDeleteTarget(course); }}>
                                                 <Trash2 size={14} />
                                             </IconButton>
                                         </div>
