@@ -40,19 +40,18 @@ import Menu from '../ui/Menu';
 import { Segmented } from '../ui/Tabs';
 import ConfirmDialog from '../ConfirmDialog';
 import InvoicePreview, { type LoadedInvoice } from './InvoicePreview';
-import type { PickMode } from './PickLayer';
 import DocumentInspector from './DocumentInspector';
 import RequisitionLivePreview from './RequisitionLivePreview';
 import RequisitionForm from './RequisitionForm';
-import { usePrintChequeReq } from './PrintPortal';
 import {
     closeInvoice,
     invoicePageSizes,
     openInvoiceFile,
     reReadInvoice,
 } from './useOpenInvoice';
+import { useRequisitionExport } from './useRequisitionExport';
+import { FIELD_LABELS, useInvoicePicker } from './useInvoicePicker';
 import { toast } from '../../lib/toast';
-import { downloadBlob } from '../../lib/download';
 import { todayISO } from '../../lib/dateUtils';
 import type { SaveChequeReqInput } from '../../hooks/useChequeRequisitions';
 import {
@@ -61,26 +60,13 @@ import {
     invoiceChecks,
     invoiceOnlyOverride,
     readDefaults,
-    rememberDefaults,
     suppliersSummary,
     type ChequeReqDefaults,
     type Draft,
 } from '../../lib/chequeReq/draft';
-import { chequeReqFileName, chequeReqPdfFileName, renderChequeReq } from '../../lib/chequeReq/docx';
-import { renderChequeReqBatchZip, renderChequeReqPdf } from '../../lib/chequeReq/export';
-import { rectOf } from '../../lib/chequeReq/extract';
 import type { Rotation } from '../../lib/chequeReq/ocr';
 import { domainWord, formatAmount, parseAmount, slashDate } from '../../lib/chequeReq/parse';
-import {
-    isMetaField,
-    isPlaceField,
-    MULTI_PICK,
-    NOTHING_PICKED,
-    pickedMetaValue,
-    pickedValue,
-    placeOf,
-    type Picked,
-} from '../../lib/chequeReq/pick';
+import { isMetaField } from '../../lib/chequeReq/pick';
 import { INVOICE_ACCEPT, invoiceKind, MAX_INVOICE_BYTES, unsupportedFileReason } from '../../lib/chequeReq/read';
 import {
     EMPTY_META,
@@ -151,12 +137,6 @@ interface QueueItem {
     touched: boolean;
 }
 
-interface PickingState {
-    key: PickFieldKey;
-    picked: Picked;
-    history: Picked[];
-}
-
 type LeftTab = 'invoice' | 'preview';
 type MobilePane = 'form' | 'invoice' | 'preview';
 
@@ -180,31 +160,6 @@ const FIELD_ORDER: FieldKey[] = [
     'quoteContact',
     'quoteWebsite',
 ];
-
-const FIELD_LABELS: Record<PickFieldKey, string> = {
-    actionNumber: 'SICAP action number',
-    nonSicapFunding: 'Non-SICAP funding',
-    poNumber: 'PO number',
-    payeeName: 'Payee name',
-    payeeAddress: 'Payee address',
-    amount: 'Payment amount',
-    description: 'Description',
-    requestedBy: 'Requested by',
-    requestedDate: 'Requested date',
-    approvedBy: 'Approved by',
-    approvedDate: 'Approved date',
-    quoteDate: 'Date of quote',
-    amountQuoted: 'Amount quoted',
-    shopName: 'Shop name',
-    quotePhone: 'Quote phone',
-    quoteEmail: 'Quote email',
-    quoteContact: 'Quote contact',
-    quoteWebsite: 'Quote website',
-    invoiceNumber: 'Invoice number',
-    invoiceDate: 'Invoice date',
-    dueDate: 'Due date',
-    netAmount: 'Net excl. VAT',
-};
 
 const STATUS_BADGE: Record<ChequeReqStatus, { label: string; tone: 'warning' | 'info' | 'success' }> = {
     draft: { label: 'Draft', tone: 'warning' },
@@ -341,7 +296,6 @@ export default function ChequeReqEditor({
 
     const [active, setActive] = useState<PickFieldKey | null>(null);
     const [focusedField, setFocusedField] = useState<PickFieldKey | null>(null);
-    const [picking, setPicking] = useState<PickingState | null>(null);
     const [leftTab, setLeftTab] = useState<LeftTab>(() => (activeItem?.invoice ? 'invoice' : 'preview'));
     const [mobilePane, setMobilePane] = useState<MobilePane>('form');
 
@@ -350,10 +304,7 @@ export default function ChequeReqEditor({
         setFocusedField(key);
     }, []);
 
-    const [pendingDownload, setPendingDownload] = useState<'docx' | 'pdf' | null>(null);
     const [confirmLeave, setConfirmLeave] = useState(false);
-    const [busyAction, setBusyAction] = useState<'docx' | 'pdf' | 'save' | 'batch' | null>(null);
-    const [batchProgress, setBatchProgress] = useState<string | null>(null);
     const [reReading, setReReading] = useState(false);
     const [readingStatus, setReadingStatus] = useState<string | null>(null);
     const [dropActive, setDropActive] = useState(false);
@@ -367,8 +318,6 @@ export default function ChequeReqEditor({
         activeIndexRef.current = activeIndex;
     });
     const unmountTimerRef = useRef<number | null>(null);
-
-    const { printing, print, printNode } = usePrintChequeReq();
 
     const effectiveDefaults = useMemo(
         () => defaults ?? readDefaults(defaultsKey),
@@ -425,6 +374,52 @@ export default function ChequeReqEditor({
         () => toCheck.filter(k => activeItem.flags[k]?.level === 'check'),
         [toCheck, activeItem.flags],
     );
+
+    const {
+        busyAction,
+        isBusy,
+        batchProgress,
+        pendingDownload,
+        printing,
+        printNode,
+        saveOnly,
+        requestDownload,
+        confirmDownload,
+        cancelDownload,
+        downloadBatchZip,
+        printActive,
+    } = useRequisitionExport({
+        items,
+        activeIndex,
+        setItems,
+        toCheckCount: toCheck.length,
+        keep,
+        defaultsKey,
+    });
+
+    const {
+        picking,
+        pickingKey,
+        pickMode,
+        startPick,
+        stopPick,
+    } = useInvoicePicker({
+        invoice: activeItem.invoice,
+        rememberPlace: Boolean(keep),
+        updateActive,
+        onStartPick: () => {
+            setLeftTab('invoice');
+            setMobilePane('invoice');
+        },
+        onCompleteSinglePick: key => {
+            if (window.matchMedia?.('(max-width: 1023px)').matches) {
+                setMobilePane('form');
+                requestAnimationFrame(() => {
+                    document.getElementById(`cr-${key}`)?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+                });
+            }
+        },
+    });
 
     const lastFlaggedRef = useRef<FieldKey | null>(null);
     useEffect(() => {
@@ -642,43 +637,12 @@ export default function ChequeReqEditor({
         [toCheck, active],
     );
 
-    // Save draft / tracking fields without downloading
-    const saveOnly = useCallback(async () => {
-        if (!keep) return;
-        const item = itemsRef.current[activeIndexRef.current];
-        if (!item) return;
-        const targetKey = item.key;
-        setBusyAction('save');
-        try {
-            const id = await keep({
-                id: item.savedId,
-                form: item.form,
-                meta: item.meta,
-                status: item.status,
-                chequeNumber: item.chequeNumber,
-                notes: item.notes,
-            });
-            setItems(prev =>
-                prev.map(cur =>
-                    cur.key === targetKey
-                        ? { ...cur, savedId: id ?? cur.savedId, touched: false }
-                        : cur,
-                ),
-            );
-            toast.success(id ? 'Requisition saved' : 'Changes kept on this page (apply migration 88 to save to history)');
-        } catch (err) {
-            toast.error(err instanceof Error ? `Could not save: ${err.message}` : 'Could not save');
-        } finally {
-            setBusyAction(null);
-        }
-    }, [keep]);
-
     // Keyboard shortcuts: Esc stops picking, Alt+ArrowDown/Up jumps flagged fields, Ctrl/Cmd+S saves
     useEffect(() => {
         const onKeyDown = (e: KeyboardEvent) => {
             if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
             if (e.key === 'Escape' && picking) {
-                setPicking(null);
+                stopPick();
                 return;
             }
             if (e.altKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
@@ -695,105 +659,7 @@ export default function ChequeReqEditor({
         };
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
-    }, [picking, toCheck, jumpToFlagged, keep, saveOnly]);
-
-    // Picking on the invoice
-    const startPick = useCallback((key: PickFieldKey) => {
-        setPicking(p => (p?.key === key ? null : { key, picked: NOTHING_PICKED, history: [] }));
-        setLeftTab('invoice');
-        setMobilePane('invoice');
-    }, []);
-
-    const applyPickedToItem = useCallback(
-        (key: PickFieldKey, picked: Picked) => {
-            const cur = itemsRef.current[activeIndexRef.current];
-            const inv = cur?.invoice;
-            if (!inv) return;
-            const rects = picked.phrases.map(rectOf);
-
-            if (isMetaField(key)) {
-                const value = pickedMetaValue(key, picked.texts);
-                updateActive(item => ({
-                    ...item,
-                    meta: { ...item.meta, [key]: value } as ChequeReqMeta,
-                    sources: rects.length ? { ...item.sources, [key]: rects } : item.sources,
-                    touched: true,
-                }));
-                return;
-            }
-
-            const value = pickedValue(key, picked.texts);
-            const place =
-                keep && isPlaceField(key) && value
-                    ? placeOf(key, picked.phrases, inv.phrases, invoicePageSizes(inv)?.[picked.phrases[0]?.page ?? 0])
-                    : null;
-
-            updateActive(item => {
-                const nextForm = { ...item.form, [key]: value };
-                if (key === 'amount' && item.form.amountQuoted === item.form.amount) {
-                    nextForm.amountQuoted = value;
-                }
-                const nextPlaces = { ...item.meta.places };
-                if (isPlaceField(key)) {
-                    if (place) nextPlaces[key] = place;
-                    else delete nextPlaces[key];
-                }
-                const nextMeta: ChequeReqMeta = isPlaceField(key)
-                    ? { ...item.meta, places: nextPlaces, ...(key === 'description' ? { item: value } : {}) }
-                    : item.meta;
-                const nextFlags: FieldFlags = { ...item.flags };
-                if (value) {
-                    nextFlags[key] = {
-                        level: 'found',
-                        note: place
-                            ? 'Picked on the invoice: the supplier’s next invoice is read in the same place'
-                            : 'Picked on the invoice',
-                        source: rects,
-                    };
-                } else {
-                    delete nextFlags[key];
-                }
-                const nextSources: FieldSources = rects.length ? { ...item.sources, [key]: rects } : item.sources;
-                return {
-                    ...item,
-                    form: nextForm,
-                    meta: nextMeta,
-                    flags: nextFlags,
-                    sources: nextSources,
-                    touched: true,
-                };
-            });
-        },
-        [keep, updateActive],
-    );
-
-    const handlePick = useCallback(
-        (picked: Picked) => {
-            if (!picking) return;
-            const { key } = picking;
-            const multi = !isMetaField(key) && MULTI_PICK.has(key);
-            setPicking(multi ? { key, picked, history: [...picking.history, picking.picked] } : null);
-            applyPickedToItem(key, picked);
-            if (!multi && window.matchMedia?.('(max-width: 1023px)').matches) {
-                setMobilePane('form');
-                requestAnimationFrame(() => {
-                    document.getElementById(`cr-${key}`)?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
-                });
-            }
-        },
-        [picking, applyPickedToItem],
-    );
-
-    const handlePickUndo = useCallback(() => {
-        if (!picking || picking.history.length === 0) return;
-        const previous = picking.history[picking.history.length - 1];
-        setPicking({
-            key: picking.key,
-            picked: previous,
-            history: picking.history.slice(0, -1),
-        });
-        applyPickedToItem(picking.key, previous);
-    }, [picking, applyPickedToItem]);
+    }, [picking, stopPick, toCheck, jumpToFlagged, keep, saveOnly]);
 
     // DocumentInspector callbacks
     const handleInspectorApply = useCallback(
@@ -919,7 +785,7 @@ export default function ChequeReqEditor({
                         touched: true,
                     }));
                     closeInvoice(oldInvoice);
-                    setPicking(null);
+                    stopPick();
                     handleFieldFocus(null);
                     setLeftTab('invoice');
                     toast.success(`Replaced invoice with ${first.fileName}`);
@@ -998,7 +864,7 @@ export default function ChequeReqEditor({
                     const firstNewIndex = itemsRef.current.length;
                     setItems(prev => [...prev, ...appended]);
                     setActiveIndex(firstNewIndex);
-                    setPicking(null);
+                    stopPick();
                     handleFieldFocus(null);
                     setLeftTab('invoice');
                     toast.success(
@@ -1018,7 +884,7 @@ export default function ChequeReqEditor({
                 setReadingStatus(null);
             }
         },
-        [history, effectiveDefaults, updateActive, handleFieldFocus],
+        [history, effectiveDefaults, updateActive, handleFieldFocus, stopPick],
     );
 
     const handleAttachInputChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -1082,7 +948,7 @@ export default function ChequeReqEditor({
                     }),
                     touched: item.touched,
                 }));
-                setPicking(null);
+                stopPick();
                 handleFieldFocus(null);
                 toast.success('Invoice re-read');
             } catch (err) {
@@ -1095,7 +961,7 @@ export default function ChequeReqEditor({
                 setReadingStatus(null);
             }
         },
-        [history, effectiveDefaults, updateActive, handleFieldFocus],
+        [history, effectiveDefaults, updateActive, handleFieldFocus, stopPick],
     );
 
     // Global Ctrl+V clipboard image paste listener
@@ -1123,119 +989,12 @@ export default function ChequeReqEditor({
         return () => window.removeEventListener('paste', onPaste);
     }, [openFileIntoQueue]);
 
-    // Download (.docx or .pdf)
-    const executeDownload = async (format: 'docx' | 'pdf') => {
-        const item = itemsRef.current[activeIndexRef.current];
-        if (!item) return;
-        const targetKey = item.key;
-        setPendingDownload(null);
-        setBusyAction(format);
-        try {
-            if (format === 'pdf') {
-                const blob = await renderChequeReqPdf(item.form, item.meta);
-                downloadBlob(blob, chequeReqPdfFileName(item.meta, item.form));
-            } else {
-                const blob = await renderChequeReq(item.form);
-                downloadBlob(blob, chequeReqFileName(item.meta, item.form));
-            }
-        } catch (err) {
-            toast.error(
-                err instanceof Error
-                    ? `The requisition could not be made: ${err.message}`
-                    : 'The requisition could not be made',
-            );
-            setBusyAction(null);
-            return;
-        }
-        rememberDefaults(item.form, item.meta, defaultsKey);
-        try {
-            const id = keep
-                ? await keep({
-                    id: item.savedId,
-                    form: item.form,
-                    meta: item.meta,
-                    status: item.status,
-                    chequeNumber: item.chequeNumber,
-                    notes: item.notes,
-                })
-                : null;
-            setItems(prev =>
-                prev.map(cur =>
-                    cur.key === targetKey
-                        ? { ...cur, savedId: id ?? cur.savedId, downloaded: true, touched: false }
-                        : cur,
-                ),
-            );
-            const label = format === 'pdf' ? 'PDF downloaded' : 'Downloaded';
-            toast.success(id ? `${label}, and kept in the history` : label);
-        } catch (err) {
-            toast.error(`Downloaded, but not kept in the history: ${(err as Error).message}`);
-        } finally {
-            setBusyAction(null);
-        }
-    };
-
-    const requestDownload = (format: 'docx' | 'pdf') => {
-        if (toCheck.length > 0) setPendingDownload(format);
-        else void executeDownload(format);
-    };
-
-    // Batch ZIP download
-    const downloadBatchZip = async (format: 'docx' | 'pdf') => {
-        const snapshot = itemsRef.current;
-        if (snapshot.length === 0) return;
-        setBusyAction('batch');
-        setBatchProgress(`Building ZIP… 0/${snapshot.length}`);
-        try {
-            const { blob, fileName } = await renderChequeReqBatchZip(
-                snapshot.map(i => ({ form: i.form, meta: i.meta })),
-                format,
-                (done, total) => setBatchProgress(`Building ZIP… ${done}/${total}`),
-            );
-            downloadBlob(blob, fileName);
-            const cur = snapshot[activeIndexRef.current];
-            if (cur) rememberDefaults(cur.form, cur.meta, defaultsKey);
-
-            if (keep) {
-                const savedIds: (string | null)[] = [];
-                for (const item of snapshot) {
-                    const id = await keep({
-                        id: item.savedId,
-                        form: item.form,
-                        meta: item.meta,
-                        status: item.status,
-                        chequeNumber: item.chequeNumber,
-                        notes: item.notes,
-                    });
-                    savedIds.push(id);
-                }
-                setItems(prev =>
-                    prev.map((item, idx) => ({
-                        ...item,
-                        savedId: savedIds[idx] ?? item.savedId,
-                        downloaded: true,
-                        touched: false,
-                    })),
-                );
-                toast.success(`Downloaded ${snapshot.length} requisitions (.zip) and kept in history`);
-            } else {
-                setItems(prev => prev.map(item => ({ ...item, downloaded: true, touched: false })));
-                toast.success(`Downloaded ${snapshot.length} requisitions (.zip)`);
-            }
-        } catch (err) {
-            toast.error(err instanceof Error ? `Batch download failed: ${err.message}` : 'Batch download failed');
-        } finally {
-            setBusyAction(null);
-            setBatchProgress(null);
-        }
-    };
-
     const switchQueueItem = (nextIndex: number) => {
         if (nextIndex < 0 || nextIndex >= items.length || nextIndex === activeIndex) return;
         const target = items[nextIndex];
         lastFlaggedRef.current = null;
         setActiveIndex(nextIndex);
-        setPicking(null);
+        stopPick();
         handleFieldFocus(null);
         setLeftTab(target.invoice ? 'invoice' : 'preview');
     };
@@ -1259,25 +1018,10 @@ export default function ChequeReqEditor({
 
     const highlight = !picking && active ? activeItem.sources[active] : undefined;
     const highlightText = !picking ? activeHighlightText(active, activeItem.form, activeItem.meta) : undefined;
-    const pickMode: PickMode | undefined = picking
-        ? {
-            label: FIELD_LABELS[picking.key],
-            multi: !isMetaField(picking.key) && MULTI_PICK.has(picking.key),
-            picked: picking.picked,
-            onPick: handlePick,
-            onDone: () => setPicking(null),
-            onUndo:
-                !isMetaField(picking.key) && MULTI_PICK.has(picking.key) && picking.history.length > 0
-                    ? handlePickUndo
-                    : undefined,
-            count: picking.picked.texts.length,
-        }
-        : undefined;
 
     const title = [activeItem.form.payeeName.trim() || 'New requisition', activeItem.meta.invoiceNumber]
         .filter(Boolean)
         .join(' · ');
-    const isBusy = busyAction !== null;
     const statusBadge = STATUS_BADGE[activeItem.status];
 
     return (
@@ -1372,7 +1116,7 @@ export default function ChequeReqEditor({
                             variant="secondary"
                             loading={printing}
                             disabled={isBusy}
-                            onClick={() => void print(activeItem.form, activeItem.meta)}
+                            onClick={printActive}
                             title="Print requisition"
                         >
                             {!printing && <Printer size={14} />}
@@ -1632,7 +1376,7 @@ export default function ChequeReqEditor({
                             meta={activeItem.meta}
                             onDownloadDocx={() => requestDownload('docx')}
                             onDownloadPdf={() => requestDownload('pdf')}
-                            onPrint={() => void print(activeItem.form, activeItem.meta)}
+                            onPrint={printActive}
                             downloading={isBusy || printing}
                         />
                     )}
@@ -1709,7 +1453,7 @@ export default function ChequeReqEditor({
                             onAccept={unflag}
                             onActive={handleFieldFocus}
                             onPick={activeItem.invoice ? startPick : undefined}
-                            picking={picking?.key}
+                            picking={pickingKey}
                         />
 
                         <div className="mt-5 pt-4 border-t border-border-subtle flex flex-wrap items-center justify-end gap-2">
@@ -1729,7 +1473,7 @@ export default function ChequeReqEditor({
                                 size="md"
                                 loading={printing}
                                 disabled={isBusy}
-                                onClick={() => void print(activeItem.form, activeItem.meta)}
+                                onClick={printActive}
                             >
                                 {!printing && <Printer size={15} />} Print
                             </Button>
@@ -1762,10 +1506,8 @@ export default function ChequeReqEditor({
                 title="Some fields still need a look"
                 message={`${toCheck.map(k => FIELD_LABELS[k]).join(', ')}: these are marked in orange or red. Download the requisition anyway?`}
                 confirmLabel="Download anyway"
-                onConfirm={() => {
-                    if (pendingDownload) void executeDownload(pendingDownload);
-                }}
-                onCancel={() => setPendingDownload(null)}
+                onConfirm={confirmDownload}
+                onCancel={cancelDownload}
             />
 
             <ConfirmDialog

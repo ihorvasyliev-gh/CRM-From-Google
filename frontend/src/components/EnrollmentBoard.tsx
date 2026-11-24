@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, useRef, useDeferredValue, startTransition } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef, startTransition } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Archive, GraduationCap, RotateCcw } from 'lucide-react';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, KeyboardSensor, MouseSensor, useSensor, useSensors, MeasuringStrategy, defaultDropAnimationSideEffects } from '@dnd-kit/core';
@@ -13,7 +13,7 @@ import { useInviteFlow } from '../hooks/useInviteFlow';
 import { useCourseSessions } from '../hooks/useCourseSessions';
 import { sessionForEnrollment } from '../lib/courseSessions';
 import { useStudentFlags } from '../hooks/useStudentFlags';
-import { ALL_STATUSES, cleanVariant, fullName, isEnrollmentStatus, PIPELINE_STATUSES, SECONDARY_STATUSES, Student, type EnrollmentStatus } from '../lib/types';
+import { fullName, isEnrollmentStatus, PIPELINE_STATUSES, SECONDARY_STATUSES, Student, type EnrollmentStatus } from '../lib/types';
 import StudentDetail from './StudentDetail';
 import { todayISO } from '../lib/dateUtils';
 import { STATUS_CONFIG } from '../lib/statusConfig';
@@ -33,24 +33,11 @@ import EditNoteModal from './EnrollmentBoard/EditNoteModal';
 import StudentFlagModal from './EnrollmentBoard/StudentFlagModal';
 import ConfirmDialog from './ConfirmDialog';
 import { showToast } from '../lib/toast';
-import { matchesSearch } from '../lib/searchUtils';
-import { useNowMinute } from '../hooks/useNow';
-import { getInviteDeadline, matchesInviteFilter, type InviteFilter } from '../lib/inviteDeadline';
-import { courseDatesOf } from '../lib/courseDates';
+import type { InviteFilter } from '../lib/inviteDeadline';
 import { computeQueuePositions } from '../lib/queuePositions';
-import { sortColumn } from './EnrollmentBoard/boardSort';
-import {
-    computeAvailableCourseDates,
-    computeCourseActiveCounts,
-    isEmailUnreachable,
-    matchesAttributeFilters,
-    type EmailStatusFilter,
-    type FlagFilter,
-} from './EnrollmentBoard/boardFilters';
+import { useBoardFilters } from './EnrollmentBoard/useBoardFilters';
 
 const EMPTY_FLAGS: import('../lib/types').StudentFlag[] = [];
-const isString = (v: unknown): v is string => typeof v === 'string';
-const isBoolean = (v: unknown): v is boolean => typeof v === 'boolean';
 const isPipelineList = (v: unknown): v is EnrollmentStatus[] =>
     Array.isArray(v) && v.every(item => (PIPELINE_STATUSES as readonly unknown[]).includes(item));
 const EMPTY_COMPLETED_COURSES: Array<{id: string, name: string}> = [];
@@ -124,58 +111,8 @@ export default function EnrollmentBoard({
         [optOuts],
     );
 
-    // Filters
-    // Board filters survive navigating away and back within the tab (session) — preferences like sort
-    // order and collapsed columns are remembered across sessions (local). Explicit URL query params
-    // (?course=..., ?date=..., ?invite=...) override saved filters so admins can share cohort links.
-    const urlParams = useMemo(() => new URLSearchParams(typeof window !== 'undefined' ? window.location.search : ''), []);
-    const urlCourse = urlParams.get('course') || undefined;
-    const urlDate = urlParams.get('date') || undefined;
-    const rawUrlInvite = urlParams.get('invite');
-    const urlInvite: InviteFilter | undefined = rawUrlInvite === 'expired' || rawUrlInvite === 'soon' || rawUrlInvite === 'attention' ? rawUrlInvite : undefined;
-
-    const [selectedCourse, setSelectedCourse] = usePersistentState<string>('board.course', () => urlCourse || initialCourseFilter || 'all', { validate: isString });
-    const [selectedVariant, setSelectedVariant] = usePersistentState<string>('board.variant', 'all', { validate: isString });
-    const [selectedCourseDate, setSelectedCourseDate] = usePersistentState<string>('board.courseDate', () => urlDate || initialCourseDate || 'all', { validate: isString });
-    // Set by the search field once typing pauses
-    const [searchQuery, setSearchQuery] = usePersistentState<string>('board.search', '', { validate: isString });
-    // The invite and date filters are remembered like the rest: coming back from a student's page
-    // shows the same cards
-    const [inviteFilter, setInviteFilter] = usePersistentState<InviteFilter>('board.inviteFilter', () => urlInvite || initialInviteFilter || 'all', {
-        validate: (v): v is InviteFilter => v === 'all' || v === 'expired' || v === 'soon' || v === 'attention',
-    });
-
-    // Apply URL deep-link overrides once on mount if present (even when sessionStorage had another filter)
-    const appliedUrlDeepLinkRef = useRef(false);
-    useEffect(() => {
-        if (appliedUrlDeepLinkRef.current) return;
-        appliedUrlDeepLinkRef.current = true;
-        if (urlCourse) {
-            setSelectedCourse(urlCourse);
-            setSelectedVariant('all');
-        }
-        if (urlDate) setSelectedCourseDate(urlDate);
-        if (urlInvite) setInviteFilter(urlInvite);
-    }, [urlCourse, urlDate, urlInvite, setSelectedCourse, setSelectedVariant, setSelectedCourseDate, setInviteFilter]);
-    const [dateFrom, setDateFrom] = usePersistentState<string>('board.dateFrom', '', { validate: isString });
-    const [dateTo, setDateTo] = usePersistentState<string>('board.dateTo', '', { validate: isString });
-    const [courseDateFrom, setCourseDateFrom] = usePersistentState<string>('board.courseDateFrom', '', { validate: isString });
-    const [courseDateTo, setCourseDateTo] = usePersistentState<string>('board.courseDateTo', '', { validate: isString });
-    const [priorityOnly, setPriorityOnly] = usePersistentState<boolean>('board.priorityOnly', false, { validate: isBoolean });
-    const [flagFilter, setFlagFilter] = usePersistentState<FlagFilter>('board.flagFilter', 'all', {
-        validate: (v): v is FlagFilter => v === 'all' || v === 'flagged' || v === 'unflagged',
-    });
-    const [pendingApprovalOnly, setPendingApprovalOnly] = usePersistentState<boolean>('board.pendingApprovalOnly', false, { validate: isBoolean });
-    const [hasNoteOnly, setHasNoteOnly] = usePersistentState<boolean>('board.hasNoteOnly', false, { validate: isBoolean });
-    const [emailFilter, setEmailFilter] = usePersistentState<EmailStatusFilter>('board.emailFilter', 'all', {
-        validate: (v): v is EmailStatusFilter => v === 'all' || v === 'unreachable' || v === 'emailable',
-    });
     // Withdrawn & Rejected open in a dialog of their own
     const [showSecondary, setShowSecondary] = useState(false);
-    const [sortOrder, setSortOrder] = usePersistentState<'date-asc' | 'date-desc' | 'name'>('board.sortOrder', 'date-asc', {
-        storage: 'local',
-        validate: (v): v is 'date-asc' | 'date-desc' | 'name' => v === 'date-asc' || v === 'date-desc' || v === 'name',
-    });
     const [collapsedColumns, setCollapsedColumns] = usePersistentState<EnrollmentStatus[]>('board.collapsedColumns', [], {
         storage: 'local',
         validate: isPipelineList,
@@ -194,24 +131,6 @@ export default function EnrollmentBoard({
             return [...prev, status];
         });
     }, [setCollapsedColumns]);
-
-    // Navigation from elsewhere (course card, dashboard, student drawer) overrides the remembered filters
-    useEffect(() => {
-        if (initialCourseFilter) {
-            setSelectedCourse(prev => {
-                if (prev !== initialCourseFilter) setSelectedVariant('all');
-                return initialCourseFilter;
-            });
-            setSelectedCourseDate(initialCourseDate || 'all');
-        } else if (initialCourseDate) {
-            setSelectedCourseDate(initialCourseDate);
-        }
-    }, [initialCourseFilter, initialCourseDate, setSelectedCourse, setSelectedVariant, setSelectedCourseDate]);
-
-    // Dashboard "Expired invites" link pre-selects the invite filter
-    useEffect(() => {
-        if (initialInviteFilter) setInviteFilter(initialInviteFilter);
-    }, [initialInviteFilter, setInviteFilter]);
 
     const inviteFlowRef = useRef<ReturnType<typeof useInviteFlow> | null>(null);
     const enrollmentsRef = useRef<EnrollmentRow[]>([]);
@@ -268,133 +187,65 @@ export default function EnrollmentBoard({
         enrollmentsRef.current = enrollments;
     }, [enrollments]);
 
-    // Course date chips: upcoming dates + past dates that still have confirmed/invited students (excluding withdrawn/rejected)
-    const today = todayISO();
-    const { availableCourseDates, courseDatesTotal } = useMemo(
-        () => computeAvailableCourseDates(enrollments, selectedCourse, selectedVariant, today),
-        [enrollments, selectedCourse, selectedVariant, today],
-    );
-
-    const courseActiveCounts = useMemo(() => computeCourseActiveCounts(enrollments), [enrollments]);
-
-    // Reset selectedCourseDate if no longer present in available dates
-    // (only once data is loaded — otherwise a date passed via navigation is wiped before enrollments arrive)
-    useEffect(() => {
-        if (enrollments.length === 0) return;
-        if (selectedCourseDate !== 'all' && !availableCourseDates.some(d => d.date === selectedCourseDate)) {
-            setSelectedCourseDate('all');
-        }
-    }, [availableCourseDates, selectedCourseDate, enrollments.length, setSelectedCourseDate]);
-
-    // The columns follow filter changes in the background: the clicked chip or the typed text shows
-    // at once and the board catches up a moment later (dimmed if that takes a while). Data changes,
-    // such as a moved card, still show immediately.
-    const filters = useMemo(() => ({
-        course: selectedCourse, variant: selectedVariant, courseDate: selectedCourseDate, search: searchQuery,
-        dateFrom, dateTo, courseDateFrom, courseDateTo, inviteFilter, sortOrder,
-        priorityOnly, flagFilter, pendingApprovalOnly, hasNoteOnly, emailFilter,
-    }), [
-        selectedCourse, selectedVariant, selectedCourseDate, searchQuery,
-        dateFrom, dateTo, courseDateFrom, courseDateTo, inviteFilter, sortOrder,
-        priorityOnly, flagFilter, pendingApprovalOnly, hasNoteOnly, emailFilter,
-    ]);
-    const shownFilters = useDeferredValue(filters);
-    const filtersPending = shownFilters !== filters;
-
-    // Step 1: Course, language, date, search, date-range filters (before attribute & invite filters so chip counts stay accurate)
-    const scopeFilteredEnrollments = useMemo(() => {
-        const { course, variant, courseDate, search, dateFrom, dateTo, courseDateFrom, courseDateTo } = shownFilters;
-        let result = enrollments;
-        if (course !== 'all') result = result.filter(e => e.course_id === course);
-        if (variant !== 'all') {
-            result = result.filter(e => cleanVariant(e.courses?.name || '', e.course_variant).toLowerCase() === variant.toLowerCase());
-        }
-        if (courseDate !== 'all') result = result.filter(e => courseDatesOf(e).includes(courseDate));
-        if (search.trim()) {
-            result = result.filter(e =>
-                matchesSearch({
-                    firstName: e.students?.first_name,
-                    lastName: e.students?.last_name,
-                    email: e.students?.email,
-                    phone: e.students?.phone,
-                    notes: e.notes,
-                    eircode: e.students?.eircode,
-                    course: e.courses?.name,
-                    variant: cleanVariant(e.courses?.name || '', e.course_variant),
-                }, search)
-            );
-        }
-        if (dateFrom) {
-            const from = new Date(dateFrom);
-            result = result.filter(e => new Date(e.created_at) >= from);
-        }
-        if (dateTo) {
-            const to = new Date(dateTo);
-            to.setSeconds(59, 999);
-            result = result.filter(e => new Date(e.created_at) <= to);
-        }
-        if (courseDateFrom) {
-            const from = courseDateFrom.split('T')[0];
-            result = result.filter(e => courseDatesOf(e).some(d => d >= from));
-        }
-        if (courseDateTo) {
-            const to = courseDateTo.split('T')[0];
-            result = result.filter(e => courseDatesOf(e).some(d => d <= to));
-        }
-        return result;
-    }, [enrollments, shownFilters]);
-
-    const attributeCounts = useMemo(() => {
-        let priority = 0;
-        let flagged = 0;
-        let pendingApproval = 0;
-        let hasNote = 0;
-        let unreachableEmail = 0;
-        for (const e of scopeFilteredEnrollments) {
-            if (e.is_priority) priority++;
-            if ((studentFlagsHook.flagsByStudentId.get(e.student_id)?.length ?? 0) > 0) flagged++;
-            if (e.completion_request_status === 'pending') pendingApproval++;
-            if (e.notes?.trim()) hasNote++;
-            if (isEmailUnreachable(e.students?.email, optedOutEmails)) unreachableEmail++;
-        }
-        return { priority, flagged, pendingApproval, hasNote, unreachableEmail };
-    }, [scopeFilteredEnrollments, studentFlagsHook.flagsByStudentId, optedOutEmails]);
-
-    // Step 2: Apply quick attribute filters (still before invite-deadline filter so expired/soon counts follow active filters)
-    const baseFilteredEnrollments = useMemo(() => {
-        const { priorityOnly, flagFilter, pendingApprovalOnly, hasNoteOnly, emailFilter } = shownFilters;
-        if (!priorityOnly && flagFilter === 'all' && !pendingApprovalOnly && !hasNoteOnly && emailFilter === 'all') {
-            return scopeFilteredEnrollments;
-        }
-        return scopeFilteredEnrollments.filter(e =>
-            matchesAttributeFilters(
-                e,
-                { priorityOnly, flagFilter, pendingApprovalOnly, hasNoteOnly, emailFilter },
-                studentFlagsHook.flagsByStudentId,
-                optedOutEmails,
-            ),
-        );
-    }, [scopeFilteredEnrollments, shownFilters, studentFlagsHook.flagsByStudentId, optedOutEmails]);
-
-    const now = useNowMinute();
-    const inviteCounts = useMemo(() => {
-        const counts = { expired: 0, soon: 0 };
-        baseFilteredEnrollments.forEach(e => {
-            if (e.status !== 'invited') return;
-            const d = getInviteDeadline(e.invited_at, e.response_days, now);
-            if (d?.isExpired) counts.expired++;
-            else if (d?.isDueSoon) counts.soon++;
-        });
-        return counts;
-    }, [baseFilteredEnrollments, now]);
-
-    const filteredEnrollments = useMemo(() => {
-        const { inviteFilter } = shownFilters;
-        if (inviteFilter === 'all') return baseFilteredEnrollments;
-        return baseFilteredEnrollments.filter(e =>
-            e.status === 'invited' && matchesInviteFilter(getInviteDeadline(e.invited_at, e.response_days, now), inviteFilter)
-        );
-    }, [baseFilteredEnrollments, shownFilters, now]);
+    const {
+        selectedCourse,
+        setSelectedCourse,
+        selectedVariant,
+        setSelectedVariant,
+        selectedCourseDate,
+        setSelectedCourseDate,
+        searchQuery,
+        setSearchQuery,
+        inviteFilter,
+        setInviteFilter,
+        dateFrom,
+        setDateFrom,
+        dateTo,
+        setDateTo,
+        courseDateFrom,
+        setCourseDateFrom,
+        courseDateTo,
+        setCourseDateTo,
+        priorityOnly,
+        setPriorityOnly,
+        flagFilter,
+        setFlagFilter,
+        pendingApprovalOnly,
+        setPendingApprovalOnly,
+        hasNoteOnly,
+        setHasNoteOnly,
+        emailFilter,
+        setEmailFilter,
+        sortOrder,
+        setSortOrder,
+        shownFilters,
+        filtersPending,
+        availableCourseDates,
+        courseDatesTotal,
+        courseActiveCounts,
+        uniqueCourses,
+        uniqueVariants,
+        selectedCourseMaxCapacity,
+        confirmedCohortCapacity,
+        attributeCounts,
+        inviteCounts,
+        filteredEnrollments,
+        byStatus,
+        secondaryCount,
+        totalPipelineCount,
+        onlySecondaryMatches,
+        hasActiveFilters,
+        resetFilters,
+        handleToggleInviteFilter,
+        handleTogglePriorityFilter,
+    } = useBoardFilters({
+        enrollments,
+        flagsByStudentId: studentFlagsHook.flagsByStudentId,
+        optedOutEmails,
+        initialCourseFilter,
+        initialCourseDate,
+        initialInviteFilter,
+    });
 
     // The selection never holds a card the filters hide (or one that is gone): the bulk bar acts on
     // what is selected, so it must be what the user can see
@@ -403,57 +254,7 @@ export default function EnrollmentBoard({
         keepSelectedOnly(new Set(filteredEnrollments.map(e => e.id)));
     }, [filteredEnrollments, keepSelectedOnly]);
 
-    // Data grouped by status
-    const byStatus = useMemo(() => {
-        const { sortOrder } = shownFilters;
-        const map: Record<string, EnrollmentRow[]> = {};
-        ALL_STATUSES.forEach(s => { map[s] = []; });
-        filteredEnrollments.forEach(e => {
-            if (map[e.status]) map[e.status].push(e);
-            else map[e.status] = [e];
-        });
-
-        Object.entries(map).forEach(([status, arr]) => sortColumn(arr, status, sortOrder));
-        return map;
-    }, [filteredEnrollments, shownFilters]);
-
     const { positions: queuePositions, details: queueDetails } = useMemo(() => computeQueuePositions(enrollments), [enrollments]);
-
-    const uniqueCourses = useMemo(() => {
-        const seen = new Map<string, string>();
-        enrollments.forEach(e => {
-            if (e.course_id && e.courses?.name && !seen.has(e.course_id)) {
-                seen.set(e.course_id, e.courses.name);
-            }
-        });
-        return Array.from(seen.entries())
-            .map(([id, name]) => ({ id, name }))
-            .sort((a, b) => a.name.localeCompare(b.name));
-    }, [enrollments]);
-
-    const selectedCourseMaxCapacity = useMemo(() => {
-        if (selectedCourse === 'all') return null;
-        return enrollments.find(e => e.course_id === selectedCourse)?.courses?.max_capacity ?? null;
-    }, [enrollments, selectedCourse]);
-
-    const confirmedCohortCapacity = useMemo(() => {
-        if (selectedCourse === 'all' || selectedCourseDate === 'all' || selectedCourseMaxCapacity == null) return null;
-        return { confirmed: byStatus['confirmed']?.length || 0, max: selectedCourseMaxCapacity };
-    }, [selectedCourse, selectedCourseDate, selectedCourseMaxCapacity, byStatus]);
-
-    const uniqueVariants = useMemo(() => {
-        if (selectedCourse === 'all') return [];
-        const seen = new Map<string, string>();
-        enrollments
-            .filter(e => e.course_id === selectedCourse)
-            .forEach(e => {
-                const cleaned = cleanVariant(e.courses?.name || '', e.course_variant);
-                if (cleaned && !seen.has(cleaned.toLowerCase())) {
-                    seen.set(cleaned.toLowerCase(), cleaned);
-                }
-            });
-        return Array.from(seen.values()).sort((a, b) => a.localeCompare(b));
-    }, [enrollments, selectedCourse]);
 
     const completedCoursesByStudentId = useMemo(() => {
         const map = new Map<string, Array<{id: string, name: string}>>();
@@ -470,7 +271,6 @@ export default function EnrollmentBoard({
         return map;
     }, [enrollments]);
 
-    const secondaryCount = (byStatus['withdrawn']?.length || 0) + (byStatus['rejected']?.length || 0);
     const openSecondary = useCallback(() => setShowSecondary(true), []);
 
     // Handlers
@@ -507,14 +307,6 @@ export default function EnrollmentBoard({
         setFlagModalTarget({ studentId: enrollment.student_id, studentName: name });
     }, []);
 
-    const handleToggleInviteFilter = useCallback((target: 'expired' | 'soon') => {
-        setInviteFilter(prev => (prev === target ? 'all' : target));
-    }, [setInviteFilter]);
-
-    const handleTogglePriorityFilter = useCallback(() => {
-        setPriorityOnly(prev => !prev);
-    }, [setPriorityOnly]);
-
     async function handleConfirmWithDate() {
         if (!confirmDateTarget || !confirmDate || confirmingDate) return;
         setConfirmingDate(true);
@@ -546,31 +338,6 @@ export default function EnrollmentBoard({
         // Keep the editor (and the typed text) open if the save fails
         if (await enrollmentsHook.updateNote(editNoteTarget.id, editNoteText.trim())) setEditNoteTarget(null);
     }
-
-    const hasActiveFilters = selectedCourse !== 'all' || selectedVariant !== 'all' || selectedCourseDate !== 'all' ||
-        inviteFilter !== 'all' || !!searchQuery.trim() || !!dateFrom || !!dateTo || !!courseDateFrom || !!courseDateTo ||
-        priorityOnly || flagFilter !== 'all' || pendingApprovalOnly || hasNoteOnly || emailFilter !== 'all';
-
-    const resetFilters = useCallback(() => {
-        setSelectedCourse('all');
-        setSelectedVariant('all');
-        setSelectedCourseDate('all');
-        setSearchQuery('');
-        setInviteFilter('all');
-        setDateFrom('');
-        setDateTo('');
-        setCourseDateFrom('');
-        setCourseDateTo('');
-        setPriorityOnly(false);
-        setFlagFilter('all');
-        setPendingApprovalOnly(false);
-        setHasNoteOnly(false);
-        setEmailFilter('all');
-    }, [
-        setSelectedCourse, setSelectedVariant, setSelectedCourseDate, setSearchQuery, setInviteFilter,
-        setDateFrom, setDateTo, setCourseDateFrom, setCourseDateTo,
-        setPriorityOnly, setFlagFilter, setPendingApprovalOnly, setHasNoteOnly, setEmailFilter,
-    ]);
 
     async function handleDeleteEnrollment() {
         if (!deleteTarget) return;
@@ -780,12 +547,6 @@ export default function EnrollmentBoard({
         handleStatusBadgeClick(initialStatus);
     }, [initialStatus, handleStatusBadgeClick, setCollapsedColumns]);
 
-    // Total pipeline count for progress bars & empty-state detection
-    const totalPipelineCount = useMemo(() => {
-        return PIPELINE_STATUSES.reduce((sum, s) => sum + (byStatus[s]?.length || 0), 0);
-    }, [byStatus]);
-
-    const onlySecondaryMatches = totalPipelineCount === 0 && secondaryCount > 0;
     const expandedCount = PIPELINE_STATUSES.length - collapsedSet.size;
 
     return (

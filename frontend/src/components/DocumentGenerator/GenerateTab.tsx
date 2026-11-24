@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
     AlertCircle,
     ArrowUpRight,
@@ -37,11 +37,11 @@ import DocxLivePreview from './DocxLivePreview';
 import ArchiveTreePreview from './ArchiveTreePreview';
 import RecentRunsPanel from './RecentRunsPanel';
 import { StepHeader } from './shared';
-import { errorText, formatRelativeTime, plural, type ShowToast } from './helpers';
+import { formatRelativeTime, plural, type ShowToast } from './helpers';
 import type { DocumentsTabKey, PreviewModalTarget, PreviewTarget } from './types';
 import type { DocumentSetup } from './useDocumentSetup';
+import { PHASE_LABELS, useArchiveRunner } from './useArchiveRunner';
 import { usePersistentState } from '../../hooks/usePersistentState';
-import { refreshCachedEnrollments } from '../../lib/enrollmentCache';
 import { formatDisplayDate } from '../../lib/dateUtils';
 import { formatPhoneDisplay } from '../../lib/contactUtils';
 import { cleanVariant, templateLabel, type Course } from '../../lib/types';
@@ -51,17 +51,11 @@ import {
     courseRun,
     defaultSessionKey,
     fetchDocContext,
-    generateDocumentsArchive,
     groupSessions,
-    isAbortError,
     planArchivePaths,
-    refreshParticipants,
-    sessionKeyOf,
     sortBySurname,
     summarizeGeneration,
     type EnrollmentWithRelations,
-    type GenerationPhase,
-    type GenerationResult,
     type GenerationStatus,
 } from '../../lib/documentUtils';
 
@@ -85,13 +79,6 @@ const STATUS_OPTIONS: { value: GenerationStatus; label: string; title: string }[
 
 type StudioRightTab = 'preview' | 'tree';
 
-const PHASE_LABELS: Record<GenerationPhase, string> = {
-    refreshing: 'Refreshing participants…',
-    downloading: 'Downloading templates…',
-    rendering: 'Rendering documents…',
-    packing: 'Packing ZIP archive…',
-};
-
 export default function GenerateTab({
     courses,
     enrollments,
@@ -104,7 +91,6 @@ export default function GenerateTab({
     onOpenPreviewModal,
     onOpenSettingsGeneral,
 }: GenerateTabProps) {
-    const queryClient = useQueryClient();
     const {
         templates,
         attTemplate,
@@ -138,15 +124,6 @@ export default function GenerateTab({
     const [studioTab, setStudioTab] = useState<StudioRightTab>('preview');
     const [previewKey, setPreviewKey] = useState<string>('');
     const [previewParticipantIdx, setPreviewParticipantIdx] = useState(0);
-
-    // Run progress & report
-    const [progress, setProgress] = useState<{ done: number; total: number; sample: boolean; phase: GenerationPhase } | null>(null);
-    const [report, setReport] = useState<{ result: GenerationResult; fileName: string } | null>(null);
-    const controllerRef = useRef<AbortController | null>(null);
-    const generating = progress !== null;
-
-    // Stop a running generation when unmounting
-    useEffect(() => () => controllerRef.current?.abort(), []);
 
     // Apply smart defaults when switching Confirmed vs Completed
     const applySmartDefaults = (nextStatus: GenerationStatus) => {
@@ -238,36 +215,6 @@ export default function GenerateTab({
         return generations.find(g => g.course_id === courseId && g.session_date === dateKey) ?? null;
     }, [courseId, session?.date, generations]);
 
-    const resetSelection = () => {
-        setSessionKey(null);
-        setExcluded(new Set());
-        setParticipantQuery('');
-        setVariantFilter('all');
-        setReport(null);
-        setPreviewParticipantIdx(0);
-        lastClickedIdxRef.current = null;
-    };
-    const changeStatus = (value: GenerationStatus) => {
-        setStatus(value);
-        setCourseId('');
-        resetSelection();
-        applySmartDefaults(value);
-    };
-    const changeCourse = (id: string) => {
-        setCourseId(id);
-        resetSelection();
-        setDisabledWordIds(new Set());
-    };
-    const changeSession = (key: string) => {
-        setSessionKey(key);
-        setExcluded(new Set());
-        setParticipantQuery('');
-        setVariantFilter('all');
-        setReport(null);
-        setPreviewParticipantIdx(0);
-        lastClickedIdxRef.current = null;
-    };
-
     const toggleParticipant = (id: string, indexInVisible?: number, shiftKey?: boolean) => {
         setExcluded(prev => {
             const next = new Set(prev);
@@ -328,6 +275,10 @@ export default function GenerateTab({
     const effectiveLbl = !!labelTemplate && includeLbl;
     const effectiveSicap = !!sicapTemplate && includeSicap;
     const effectiveExcel = excelColumns.length > 0 && includeExcel;
+    const effectiveExcelColumns = useMemo(
+        () => (effectiveExcel ? excelColumns : []),
+        [effectiveExcel, excelColumns],
+    );
     const effectiveCombined = combined && chosenWordTemplates.length > 0;
 
     const hasConfiguredAny = presetTemplates.length > 0 || !!attTemplate || !!labelTemplate || !!sicapTemplate || excelColumns.length > 0;
@@ -422,86 +373,61 @@ export default function GenerateTab({
     const safePreviewIdx = selected.length > 0 ? Math.min(previewParticipantIdx, selected.length - 1) : 0;
 
     // ─── Generate ───────────────────────────────────────────
-    /** `sample` renders only the first participant, to check the templates before a full run. */
-    async function generate(sample = false) {
-        if (!canGenerate) return;
-        const controller = new AbortController();
-        controllerRef.current = controller;
-        setProgress({ done: 0, total: 0, sample, phase: 'refreshing' });
-        setReport(null);
-        try {
-            const chosen = sample ? selected.slice(0, 1) : selected;
-            const { people, skipped } = await refreshParticipants(
-                chosen,
-                e => e.status === status && e.course_id === courseId && sessionKeyOf(e) === session?.key,
-            );
-            if (controller.signal.aborted) return;
-            if (skipped.length) void refreshCachedEnrollments(queryClient, chosen.map(e => e.id));
-            if (!people.length) {
-                showToast('Nobody to generate for — the selected enrollments changed since the list was loaded. The list has been refreshed.', 'error');
-                return;
-            }
+    const {
+        progress,
+        report,
+        generating,
+        generate,
+        cancel,
+        clearReport,
+    } = useArchiveRunner({
+        canGenerate,
+        status,
+        courseId,
+        courseName: course?.name,
+        sessionKey: session?.key,
+        sessionDate: session?.date,
+        selected,
+        chosenWordTemplates,
+        attendanceTemplatePath: effectiveAtt ? attTemplate?.storage_path : null,
+        labelTemplatePath: effectiveLbl ? labelTemplate?.storage_path : null,
+        sicapTemplatePath: effectiveSicap ? sicapTemplate?.storage_path : null,
+        archiveVariables,
+        excelColumns: effectiveExcelColumns,
+        combined: effectiveCombined,
+        onLogGeneration: setup.logGeneration.mutate,
+        showToast,
+    });
 
-            const fileName = archiveFileName(people, sample ? 'SAMPLE ' : '');
-            const context = await fetchDocContext(people);
-            if (controller.signal.aborted) return;
-
-            const result = await generateDocumentsArchive(fileName, {
-                enrollments: people,
-                templates: chosenWordTemplates.map(t => ({ name: templateLabel(t), storagePath: t.storage_path })),
-                attendanceTemplatePath: effectiveAtt ? attTemplate?.storage_path : null,
-                labelTemplatePath: effectiveLbl ? labelTemplate?.storage_path : null,
-                sicapTemplatePath: effectiveSicap ? sicapTemplate?.storage_path : null,
-                context,
-                ...archiveVariables,
-                excelColumns: effectiveExcel ? excelColumns : [],
-                combined: effectiveCombined,
-                signal: controller.signal,
-                onPhase: phase => setProgress(prev => (prev ? { ...prev, phase } : { done: 0, total: 0, sample, phase })),
-                onProgress: (done, total) => setProgress(prev => ({ done, total, sample, phase: prev?.phase ?? 'rendering' })),
-            });
-            result.skipped = skipped;
-            setReport({ result, fileName });
-            const { type } = summarizeGeneration(result);
-            const downloaded = result.totalDocs > 0 || result.extras.some(x => x.ok);
-
-            if (downloaded && !sample) {
-                setup.logGeneration.mutate({
-                    staff_name: context.staffName ?? '',
-                    course_id: courseId || null,
-                    course_name: course?.name || 'Course',
-                    session_date: session?.date ?? null,
-                    status,
-                    participant_count: people.length,
-                    template_names: chosenWordTemplates.map(t => templateLabel(t)),
-                    extras: result.extras.filter(x => x.ok).map(x => x.label),
-                    file_name: fileName,
-                    total_docs: result.totalDocs,
-                    had_problems: result.failedTemplates.length > 0 || result.failedDocs.length > 0 || result.extras.some(x => !x.ok),
-                    source: 'documents',
-                });
-            }
-
-            showToast(
-                !downloaded
-                    ? 'Nothing was generated — see the report below'
-                    : type === 'success'
-                        ? `Downloaded ${fileName}`
-                        : 'Downloaded, but some files need attention — see the report below',
-                type,
-            );
-        } catch (err: unknown) {
-            if (isAbortError(err)) {
-                showToast('Generation cancelled', 'info');
-            } else {
-                console.error('Generation error:', err);
-                showToast(`Generation failed: ${errorText(err)}`, 'error');
-            }
-        } finally {
-            controllerRef.current = null;
-            setProgress(null);
-        }
-    }
+    const resetSelection = () => {
+        setSessionKey(null);
+        setExcluded(new Set());
+        setParticipantQuery('');
+        setVariantFilter('all');
+        clearReport();
+        setPreviewParticipantIdx(0);
+        lastClickedIdxRef.current = null;
+    };
+    const changeStatus = (value: GenerationStatus) => {
+        setStatus(value);
+        setCourseId('');
+        resetSelection();
+        applySmartDefaults(value);
+    };
+    const changeCourse = (id: string) => {
+        setCourseId(id);
+        resetSelection();
+        setDisabledWordIds(new Set());
+    };
+    const changeSession = (key: string) => {
+        setSessionKey(key);
+        setExcluded(new Set());
+        setParticipantQuery('');
+        setVariantFilter('all');
+        clearReport();
+        setPreviewParticipantIdx(0);
+        lastClickedIdxRef.current = null;
+    };
 
     const statusWord = status === 'confirmed' ? 'confirmed' : 'completed';
     const dateHeader = status === 'confirmed' ? 'Confirmed' : 'Completed';
@@ -956,7 +882,7 @@ export default function GenerateTab({
                                 </div>
                             </div>
 
-                            {generating ? (
+                            {progress ? (
                                 <div className="space-y-2">
                                     <div className="flex items-center gap-2">
                                         <div className="flex-1 min-w-0">
@@ -982,7 +908,7 @@ export default function GenerateTab({
                                                 />
                                             </div>
                                         </div>
-                                        <Button variant="secondary" size="sm" onClick={() => controllerRef.current?.abort()}>
+                                        <Button variant="secondary" size="sm" onClick={cancel}>
                                             <Square size={12} />
                                             Cancel
                                         </Button>
@@ -1031,7 +957,7 @@ export default function GenerateTab({
                                 <GenerationReport
                                     result={report.result}
                                     fileName={report.fileName}
-                                    onDismiss={() => setReport(null)}
+                                    onDismiss={clearReport}
                                 />
                             )}
                         </div>
