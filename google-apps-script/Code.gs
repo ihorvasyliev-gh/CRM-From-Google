@@ -3,7 +3,8 @@
 // To set your credentials, go to:
 // Project Settings → Script Properties → Add:
 //   SUPABASE_URL = https://your-project.supabase.co
-//   SUPABASE_KEY = your-service-role-key
+//   SUPABASE_KEY = your-service-role-or-sb_secret-key
+//   ALERT_EMAIL  = (optional) email address for throttled ERROR alerts
 // ==========================================
 
 var CONFIG_ = null; // read once per execution, not on every request
@@ -11,8 +12,8 @@ var CONFIG_ = null; // read once per execution, not on every request
 function getConfig_() {
   if (CONFIG_) return CONFIG_;
   var props = PropertiesService.getScriptProperties();
-  var url = props.getProperty('SUPABASE_URL') || '';
-  var key = props.getProperty('SUPABASE_KEY') || '';
+  var url = (props.getProperty('SUPABASE_URL') || '').trim().replace(/\/+$/, '');
+  var key = (props.getProperty('SUPABASE_KEY') || '').trim();
   if (!url || !key) {
     throw new Error('SUPABASE_URL and SUPABASE_KEY must be set in Script Properties.');
   }
@@ -27,13 +28,38 @@ var MIRROR_SHEET_NAME = 'CRM Mirror';       // Supabase → read-only sheet
 // Limits for execution
 var MAX_EXECUTION_TIME = 4.5 * 60 * 1000; // 4.5 minutes in milliseconds
 var START_TIME = Date.now();
+var SCRIPT_LOCK_TIMEOUT_MS = 30000;       // 30 seconds lock wait
 
 // Retry settings for API calls
 var MAX_RETRIES = 3;
 var RETRY_BASE_DELAY_MS = 1000; // 1 second base, doubles on each retry
 
 // Global cache for Course Name -> ID mapping
-var COURSE_CACHE = {}; 
+var COURSE_CACHE = {};
+
+/**
+ * Runs fn() while holding the script-wide lock so overlapping triggers or manual
+ * runs cannot race on Supabase writes or the CRM Mirror sheet.
+ */
+function withScriptLock_(name, fn, options) {
+  var opts = options || {};
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(SCRIPT_LOCK_TIMEOUT_MS)) {
+    log_(name + ': could not acquire script lock within ' + (SCRIPT_LOCK_TIMEOUT_MS / 1000) + 's; skipping overlapping run.', opts.errorOnSkip ? 'ERROR' : 'WARN');
+    if (opts.toastOnSkip) {
+      try {
+        SpreadsheetApp.getActiveSpreadsheet().toast('Another CRM Sync job is already running. Please try again shortly.', 'CRM Sync');
+      } catch (ignore) {}
+    }
+    return false;
+  }
+  try {
+    fn();
+    return true;
+  } finally {
+    lock.releaseLock();
+  }
+}
 
 function onOpen() {
   SpreadsheetApp.getUi()
@@ -57,24 +83,30 @@ function onOpen() {
 
 /**
  * Helper to identify phone/mobile header names in English, Russian, Ukrainian, etc.
+ * Rejects non-phone headers containing generic words like "number" or "contact"
+ * (e.g. "House number", "Reference number", "Emergency contact name").
  */
 function isPhoneHeader_(h) {
   if (!h) return false;
   var s = String(h).trim().toLowerCase();
-  if (s.indexOf('pps') !== -1 || s.indexOf('ppsn') !== -1 || s.indexOf('eircode') !== -1 || s.indexOf('score') !== -1) {
+  if (
+    /\b(ppsn?|eircode|score|house|flat|apt|apartment|street|address|reference|ref|passport|account|card|order|serial|ticket|emergency|method|preference|consent|email|name)\b/.test(s) ||
+    /(дома|квартир|паспорт|адрес|почт|имя|ім'я)/.test(s)
+  ) {
     return false;
   }
   return (
     s.indexOf('phone') !== -1 ||
     s.indexOf('mobile') !== -1 ||
-    s.indexOf('телефон') !== -1 ||
-    s.indexOf('номер') !== -1 ||
-    s.indexOf('тел') !== -1 ||
-    s.indexOf('tel') !== -1 ||
     s.indexOf('cell') !== -1 ||
-    s.indexOf('contact') !== -1 ||
     s.indexOf('whatsapp') !== -1 ||
-    s.indexOf('number') !== -1
+    s.indexOf('телефон') !== -1 ||
+    s.indexOf('мобильн') !== -1 ||
+    s.indexOf('мобільн') !== -1 ||
+    /\btel\.?(?:ephone)?\b/.test(s) ||
+    /(^|[\s(\/.,_-])тел\.?($|[\s)\/.,_-])/.test(s) ||
+    /\bcontact\s*(no\.?|num(?:ber)?)\b/.test(s) ||
+    /контакт\S*\s+номер/.test(s)
   );
 }
 
@@ -181,43 +213,47 @@ function getRowEmail_(row, headerMap) {
  * Triggered on Form Submit. Syncs just the new row.
  */
 function onFormSubmit(e) {
-  try {
-    if (!e || !e.range) {
-      log_('onFormSubmit: Event object or range is missing', 'WARN');
-      return;
-    }
-    var sheet = e.range.getSheet();
-    if (sheet.getName() !== SOURCE_SHEET_NAME) {
-      Logger.log('onFormSubmit: sheet "' + sheet.getName() + '" is not "' + SOURCE_SHEET_NAME + '", skipping.');
-      return;
-    }
+  withScriptLock_('onFormSubmit', function () {
+    try {
+      if (!e || !e.range) {
+        log_('onFormSubmit: Event object or range is missing', 'WARN');
+        return;
+      }
+      var sheet = e.range.getSheet();
+      if (sheet.getName() !== SOURCE_SHEET_NAME) {
+        Logger.log('onFormSubmit: sheet "' + sheet.getName() + '" is not "' + SOURCE_SHEET_NAME + '", skipping.');
+        return;
+      }
 
-    warmUpCourseCache();
-    var row = e.range.getRow();
-    syncRowsRange(sheet, row, row);
-    log_('onFormSubmit: row ' + row + ' synced', 'INFO');
-  } catch (err) {
-    log_('onFormSubmit error: ' + err + (err.stack ? '\nStack: ' + err.stack : ''), 'ERROR');
-  }
+      warmUpCourseCache();
+      var row = e.range.getRow();
+      syncRowsRange(sheet, row, row);
+      log_('onFormSubmit: row ' + row + ' synced', 'INFO');
+    } catch (err) {
+      log_('onFormSubmit error: ' + err + (err.stack ? '\nStack: ' + err.stack : ''), 'ERROR');
+    }
+  }, { errorOnSkip: true });
 }
 
 /**
  * Triggers periodically or manually. Syncs recent entries.
  */
 function syncAllRecent() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(SOURCE_SHEET_NAME);
-  if (!sheet) {
-    ss.toast('Sheet "' + SOURCE_SHEET_NAME + '" not found.', 'Error');
-    return;
-  }
+  withScriptLock_('syncAllRecent', function () {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName(SOURCE_SHEET_NAME);
+    if (!sheet) {
+      ss.toast('Sheet "' + SOURCE_SHEET_NAME + '" not found.', 'Error');
+      return;
+    }
 
-  var lastRow = sheet.getLastRow();
-  if (lastRow < 2) return;
-  warmUpCourseCache();
-  var startRow = Math.max(2, lastRow - 20); 
-  syncRowsRange(sheet, startRow, lastRow);
-  ss.toast('The last rows have been uploaded to Supabase!', 'CRM Sync');
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return;
+    warmUpCourseCache();
+    var startRow = Math.max(2, lastRow - 20);
+    syncRowsRange(sheet, startRow, lastRow);
+    ss.toast('The last rows have been uploaded to Supabase!', 'CRM Sync');
+  }, { toastOnSkip: true });
 }
 
 /**
@@ -247,73 +283,75 @@ function resumeSyncAllRowsBatched(e) {
  * Manual/Resumable Trigger. Syncs ALL rows in batches safely.
  */
 function syncAllRowsBatched() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(SOURCE_SHEET_NAME);
-  
-  if (!sheet) {
-    ss.toast('Sheet "' + SOURCE_SHEET_NAME + '" not found.', 'Error');
-    return;
-  }
+  withScriptLock_('syncAllRowsBatched', function () {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName(SOURCE_SHEET_NAME);
 
-  var lastRow = sheet.getLastRow();
-  if (lastRow < 2) {
-    ss.toast('No data to download.', 'CRM Sync');
-    return;
-  }
-  
-  var scriptProps = PropertiesService.getScriptProperties();
-  var savedRow = scriptProps.getProperty('SYNC_START_ROW');
-  var startRow = savedRow ? parseInt(savedRow, 10) : 2;
-
-  if (startRow === 2) {
-    ss.toast('Starting full sync.', 'CRM Sync');
-  } else {
-    ss.toast('Resume sync from line ' + startRow + '...', 'CRM Sync');
-  }
-  
-  warmUpCourseCache();
-
-  var failedBatches = 0;
-  var MAX_CONSECUTIVE_FAILURES = 3;
-
-  for (var r = startRow; r <= lastRow; r += BATCH_SIZE) {
-    if (Date.now() - START_TIME > MAX_EXECUTION_TIME) {
-      scriptProps.setProperty('SYNC_START_ROW', r.toString());
-      
-      ScriptApp.newTrigger('resumeSyncAllRowsBatched')
-        .timeBased()
-        .after(60 * 1000) // Resume in 1 minute
-        .create();
-        
-      ss.toast('Pause on line ' + r + ' — will continue in 1 min', 'CRM Sync Pause');
-      return; 
+    if (!sheet) {
+      ss.toast('Sheet "' + SOURCE_SHEET_NAME + '" not found.', 'Error');
+      return;
     }
 
-    var endRow = Math.min(r + BATCH_SIZE - 1, lastRow);
-    try {
-      syncRowsRange(sheet, r, endRow);
-      ss.toast('Lines ' + r + ' – ' + endRow + ' of ' + lastRow, 'CRM Sync');
-      failedBatches = 0;
-      Utilities.sleep(500); 
-    } catch (err) {
-      failedBatches++;
-      Logger.log("Error syncing batch " + r + "-" + endRow + ": " + err);
-      ss.toast('Error on line ' + r + ': ' + String(err).substring(0, 80), 'CRM Sync Error');
-      
-      if (failedBatches >= MAX_CONSECUTIVE_FAILURES) {
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      ss.toast('No data to download.', 'CRM Sync');
+      return;
+    }
+
+    var scriptProps = PropertiesService.getScriptProperties();
+    var savedRow = scriptProps.getProperty('SYNC_START_ROW');
+    var startRow = savedRow ? parseInt(savedRow, 10) : 2;
+
+    if (startRow === 2) {
+      ss.toast('Starting full sync.', 'CRM Sync');
+    } else {
+      ss.toast('Resume sync from line ' + startRow + '...', 'CRM Sync');
+    }
+
+    warmUpCourseCache();
+
+    var failedBatches = 0;
+    var MAX_CONSECUTIVE_FAILURES = 3;
+
+    for (var r = startRow; r <= lastRow; r += BATCH_SIZE) {
+      if (Date.now() - START_TIME > MAX_EXECUTION_TIME) {
         scriptProps.setProperty('SYNC_START_ROW', r.toString());
+
         ScriptApp.newTrigger('resumeSyncAllRowsBatched')
           .timeBased()
-          .after(2 * 60 * 1000)
+          .after(60 * 1000) // Resume in 1 minute
           .create();
-        ss.toast('Too many errors. Pausing at line ' + r + ', will retry in 2 min.', 'CRM Sync Error');
+
+        ss.toast('Pause on line ' + r + ' — will continue in 1 min', 'CRM Sync Pause');
         return;
       }
+
+      var endRow = Math.min(r + BATCH_SIZE - 1, lastRow);
+      try {
+        syncRowsRange(sheet, r, endRow);
+        ss.toast('Lines ' + r + ' – ' + endRow + ' of ' + lastRow, 'CRM Sync');
+        failedBatches = 0;
+        Utilities.sleep(500);
+      } catch (err) {
+        failedBatches++;
+        log_('Error syncing batch ' + r + '-' + endRow + ': ' + err, 'ERROR');
+        ss.toast('Error on line ' + r + ': ' + String(err).substring(0, 80), 'CRM Sync Error');
+
+        if (failedBatches >= MAX_CONSECUTIVE_FAILURES) {
+          scriptProps.setProperty('SYNC_START_ROW', r.toString());
+          ScriptApp.newTrigger('resumeSyncAllRowsBatched')
+            .timeBased()
+            .after(2 * 60 * 1000)
+            .create();
+          ss.toast('Too many errors. Pausing at line ' + r + ', will retry in 2 min.', 'CRM Sync Error');
+          return;
+        }
+      }
     }
-  }
-  
-  scriptProps.deleteProperty('SYNC_START_ROW');
-  ss.toast('Finished! All ' + lastRow + ' rows synced.', 'CRM Sync ✅');
+
+    scriptProps.deleteProperty('SYNC_START_ROW');
+    ss.toast('Finished! All ' + lastRow + ' rows synced.', 'CRM Sync ✅');
+  }, { toastOnSkip: true });
 }
 
 /**
@@ -386,7 +424,11 @@ function syncRowsRange(sheet, startRow, endRow) {
   var existingStudents = [];
   if (batchEmails.length > 0) {
     var queryParams = 'select=id,first_name,last_name,email,phone,address,eircode,dob&email=in.' + pgrstInList_(batchEmails);
-    existingStudents = _fetch('students?' + queryParams, 'get') || [];
+    var fetchedStudents = _fetch('students?' + queryParams, 'get');
+    if (fetchedStudents === null) {
+      throw new Error('Failed to fetch existing students for rows ' + startRow + '-' + endRow + '.');
+    }
+    existingStudents = fetchedStudents;
   }
 
   var existingByEmail = {};
@@ -426,7 +468,11 @@ function syncRowsRange(sheet, startRow, endRow) {
       
       if (Object.keys(patchPayload).length > 0) {
         patchPayload.last_synced_at = new Date().toISOString();
-        _fetch('students?id=eq.' + matchedStudent.id, 'patch', patchPayload);
+        var patchRes = _fetch('students?id=eq.' + matchedStudent.id, 'patch', patchPayload);
+        if (patchRes === null) {
+          log_('Failed to patch existing student ' + matchedStudent.id + ' (' + matchedStudent.email + ')', 'ERROR');
+          throw new Error('Failed to patch student record for ' + matchedStudent.email + '.');
+        }
         for (var f in patchPayload) matchedStudent[f] = patchPayload[f];
       }
       
@@ -438,9 +484,9 @@ function syncRowsRange(sheet, startRow, endRow) {
 
   if (studentsToInsert.length > 0) {
     var upsertedStudents = _fetch('students?on_conflict=first_name,last_name,email', 'post', studentsToInsert, { 
-      'Prefer': 'return=representation' 
+      'Prefer': 'resolution=merge-duplicates,return=representation' 
     });
-    if (!upsertedStudents) throw new Error("Failed to insert new students.");
+    if (!upsertedStudents) throw new Error("Failed to insert/upsert new students.");
     
     for (var k = 0; k < upsertedStudents.length; k++) {
       var s = upsertedStudents[k];
@@ -461,7 +507,10 @@ function syncRowsRange(sheet, startRow, endRow) {
 
   var activeEnrollment = {}; // "studentId_courseId" → { movedOn: invited or further, variants: [...] }
   if (batchStudentIds.length > 0) {
-    var enrData = _fetch('enrollments?select=student_id,course_id,status,course_variant&student_id=in.' + pgrstInList_(batchStudentIds), 'get') || [];
+    var enrData = _fetch('enrollments?select=student_id,course_id,status,course_variant&student_id=in.' + pgrstInList_(batchStudentIds), 'get');
+    if (enrData === null) {
+      throw new Error('Failed to fetch existing enrollments for rows ' + startRow + '-' + endRow + '.');
+    }
     for (var eIdx = 0; eIdx < enrData.length; eIdx++) {
       var enr = enrData[eIdx];
       if (enr.status === 'withdrawn' || enr.status === 'rejected') continue;
@@ -525,9 +574,13 @@ function syncRowsRange(sheet, startRow, endRow) {
 
   // Upsert Enrollments (ignores duplicates to keep existing statuses intact)
   if (enrollmentsToUpsert.length > 0) {
-    _fetch('enrollments?on_conflict=student_id,course_id,course_variant', 'post', enrollmentsToUpsert, { 
+    var enrUpsertRes = _fetch('enrollments?on_conflict=student_id,course_id,course_variant', 'post', enrollmentsToUpsert, { 
       'Prefer': 'resolution=ignore-duplicates' 
     });
+    if (enrUpsertRes === null) {
+      log_('Failed to upsert ' + enrollmentsToUpsert.length + ' enrollment(s) for rows ' + startRow + '-' + endRow, 'ERROR');
+      throw new Error('Failed to upsert enrollments for rows ' + startRow + '-' + endRow + '.');
+    }
   }
 }
 
@@ -556,8 +609,12 @@ function resubscribeReRegisteredEmails_(rowMap) {
     var optOut = optOuts[j];
     var submittedAt = latestByEmail[optOut.email];
     if (!submittedAt || new Date(submittedAt).getTime() <= new Date(optOut.opted_out_at).getTime()) continue;
-    _fetch('email_opt_outs?email=eq.' + encodeURIComponent(optOut.email) + '&opted_out_at=lt.' + encodeURIComponent(submittedAt), 'delete');
-    log_('Re-registered via Google Form, emails turned back on for ' + optOut.email, 'INFO');
+    var delRes = _fetch('email_opt_outs?email=eq.' + encodeURIComponent(optOut.email) + '&opted_out_at=lt.' + encodeURIComponent(submittedAt), 'delete');
+    if (delRes === null) {
+      log_('Failed to remove email_opt_outs entry for ' + optOut.email, 'ERROR');
+    } else {
+      log_('Re-registered via Google Form, emails turned back on for ' + optOut.email, 'INFO');
+    }
   }
 }
 
@@ -682,16 +739,19 @@ function getCourseId(name) {
 }
 
 /**
- * Core HTTP helper with exponential backoff retry.
+ * Core HTTP helper with exponential backoff retry (retries 429, 5xx, and network errors).
  */
 function _fetch(endpoint, method, payload, extraHeaders) {
   var config = getConfig_();
   var url = config.url + '/rest/v1/' + endpoint;
   var headers = {
     'apikey': config.key,
-    'Authorization': 'Bearer ' + config.key,
     'Content-Type': 'application/json'
   };
+  // New sb_secret_ keys authenticate via apikey only; legacy JWT service_role keys also send Bearer
+  if (config.key.indexOf('sb_secret_') !== 0) {
+    headers['Authorization'] = 'Bearer ' + config.key;
+  }
   
   if (extraHeaders) {
     for (var k in extraHeaders) headers[k] = extraHeaders[k];
@@ -708,6 +768,7 @@ function _fetch(endpoint, method, payload, extraHeaders) {
   var lastError = null;
   
   for (var attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    var retryDelayMs = RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
     try {
       var response = UrlFetchApp.fetch(url, options);
       var code = response.getResponseCode();
@@ -722,13 +783,22 @@ function _fetch(endpoint, method, payload, extraHeaders) {
         }
       }
       
-      if (code >= 400 && code < 500) {
+      if (code >= 400 && code < 500 && code !== 429) {
         Logger.log("Supabase Client Error [" + method.toUpperCase() + " " + endpoint + "] (" + code + "): " + content);
         return null;
       }
+
+      if (code === 429) {
+        var respHeaders = response.getHeaders ? response.getHeaders() : {};
+        var retryAfter = respHeaders['Retry-After'] || respHeaders['retry-after'];
+        var retryAfterSec = retryAfter ? parseInt(retryAfter, 10) : NaN;
+        if (!isNaN(retryAfterSec) && retryAfterSec > 0) {
+          retryDelayMs = Math.min(retryAfterSec * 1000, 10000);
+        }
+      }
       
       lastError = "HTTP " + code + ": " + content;
-      Logger.log("Supabase Server Error (attempt " + (attempt + 1) + "/" + MAX_RETRIES + ") [" + method.toUpperCase() + " " + endpoint + "] (" + code + "): " + content.substring(0, 200));
+      Logger.log("Supabase Retryable Error (attempt " + (attempt + 1) + "/" + MAX_RETRIES + ") [" + method.toUpperCase() + " " + endpoint + "] (" + code + "): " + content.substring(0, 200));
       
     } catch (networkErr) {
       lastError = String(networkErr);
@@ -736,7 +806,7 @@ function _fetch(endpoint, method, payload, extraHeaders) {
     }
     
     if (attempt < MAX_RETRIES - 1) {
-      Utilities.sleep(RETRY_BASE_DELAY_MS * Math.pow(2, attempt));
+      Utilities.sleep(retryDelayMs);
     }
   }
   
@@ -773,9 +843,10 @@ function formatDate(dateObj) {
     var month = parseInt(dmyMatch[2], 10);
     var year = parseInt(dmyMatch[3], 10);
 
-    // If 2-digit birth year: 00..25 -> 2000..2025; 26..99 -> 1926..1999
+    // If 2-digit birth year: 00..currentTwoDigitYear -> 2000..currentYear; above -> 19xx
     if (year < 100) {
-      year = (year > 25) ? 1900 + year : 2000 + year;
+      var currentTwoDigitYear = new Date().getFullYear() % 100;
+      year = (year > currentTwoDigitYear) ? 1900 + year : 2000 + year;
     }
 
     var mStr = month < 10 ? "0" + month : "" + month;
@@ -870,25 +941,28 @@ function normalizePhone(phone) {
 // This list is the single source of truth for column order, header, width and format.
 // r = { s: student, e: enrollment ({} when none), flags: [...], tz: spreadsheet time zone }
 var MIRROR_COLUMNS = [
-  { title: 'Course',      width: 200, value: function (r) { return r.e.course ? r.e.course.name : ''; } },
-  { title: 'Variant',     width: 90,  center: true, value: function (r) { return r.e.course_variant || ''; } },
-  { title: 'Status',      width: 110, center: true, value: function (r) { return statusLabel_(r.e.status); } },
-  { title: 'Priority',    width: 70,  center: true, value: function (r) { return r.e.is_priority ? '⭐' : ''; } },
-  { title: 'First Name',  width: 120, bold: true,   value: function (r) { return r.s.first_name || ''; } },
-  { title: 'Last Name',   width: 130, bold: true,   value: function (r) { return r.s.last_name || ''; } },
-  { title: 'Email',       width: 220, value: function (r) { return r.s.email || ''; } },
-  { title: 'Mobile',      width: 130, value: function (r) { return r.s.phone || ''; } },
-  { title: 'Flags',       width: 200, value: function (r) { return buildFlagsSummary_(r.flags); } },
-  { title: 'Notes',       width: 220, value: function (r) { return r.e.notes || ''; } },
-  { title: 'Course Date', width: 105, date: true, value: function (r) { return toSheetDate_(r.e.invited_date, r.tz); } },
-  { title: 'Confirmed',   width: 105, date: true, value: function (r) { return toSheetDate_(r.e.confirmed_date, r.tz); } },
-  { title: 'Completed',   width: 105, date: true, value: function (r) { return toSheetDate_(r.e.completed_date, r.tz); } },
-  { title: 'Registered',  width: 105, date: true, value: function (r) { return toSheetDate_(r.e.created_at || r.s.created_at, r.tz); } },
-  { title: 'DOB',         width: 100, date: true, value: function (r) { return toSheetDate_(r.s.dob, r.tz); } },
-  { title: 'Address',     width: 220, value: function (r) { return r.s.address || ''; } },
-  { title: 'Eircode',     width: 90,  center: true, value: function (r) { return r.s.eircode || ''; } },
-  { title: 'Enrollment ID', width: 60, hidden: true, value: function (r) { return r.e.id || ''; } },
-  { title: 'Student ID',    width: 60, hidden: true, value: function (r) { return r.s.id || r.e.student_id || ''; } }
+  { title: 'Course',                width: 200, value: function (r) { return r.e.course ? r.e.course.name : ''; } },
+  { title: 'Variant',               width: 90,  center: true, value: function (r) { return r.e.course_variant || ''; } },
+  { title: 'Status',                width: 110, center: true, value: function (r) { return statusLabel_(r.e.status); } },
+  { title: 'Priority',              width: 70,  center: true, value: function (r) { return r.e.is_priority ? '⭐' : ''; } },
+  { title: 'First Name',            width: 120, bold: true,   value: function (r) { return r.s.first_name || ''; } },
+  { title: 'Last Name',             width: 130, bold: true,   value: function (r) { return r.s.last_name || ''; } },
+  { title: 'Email',                 width: 220, value: function (r) { return r.s.email || ''; } },
+  { title: 'Mobile',                width: 130, value: function (r) { return r.s.phone || ''; } },
+  { title: 'Flags',                 width: 200, value: function (r) { return buildFlagsSummary_(r.flags); } },
+  { title: 'Notes',                 width: 220, value: function (r) { return r.e.notes || ''; } },
+  { title: 'Course Date',           width: 105, date: true, value: function (r) { return toSheetDate_(r.e.invited_date, r.tz); } },
+  { title: 'Invited Dates',         width: 170, value: function (r) { return formatInvitedDates_(r.e.invited_dates); } },
+  { title: 'Confirmed',             width: 105, date: true, value: function (r) { return toSheetDate_(r.e.confirmed_date, r.tz); } },
+  { title: 'Completed',             width: 105, date: true, value: function (r) { return toSheetDate_(r.e.completed_date, r.tz); } },
+  { title: 'Completion Request',    width: 125, center: true, value: function (r) { return formatCompletionRequest_(r.e.completion_request_status); } },
+  { title: 'Excluded from Reports', width: 120, center: true, value: function (r) { return r.e.exclude_from_reports ? 'Yes' : ''; } },
+  { title: 'Registered',            width: 105, date: true, value: function (r) { return toSheetDate_(r.e.created_at || r.s.created_at, r.tz); } },
+  { title: 'DOB',                   width: 100, date: true, value: function (r) { return toSheetDate_(r.s.dob, r.tz); } },
+  { title: 'Address',               width: 220, value: function (r) { return r.s.address || ''; } },
+  { title: 'Eircode',               width: 90,  center: true, value: function (r) { return r.s.eircode || ''; } },
+  { title: 'Enrollment ID',         width: 60,  hidden: true, value: function (r) { return r.e.id || ''; } },
+  { title: 'Student ID',            width: 60,  hidden: true, value: function (r) { return r.s.id || r.e.student_id || ''; } }
 ];
 
 // Board order, used to sort rows inside a course. [background, text colour]
@@ -905,6 +979,19 @@ var NO_ENROLLMENT_LABEL_ = 'No enrollments';
 
 function statusLabel_(status) {
   if (!status) return NO_ENROLLMENT_LABEL_;
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+function formatInvitedDates_(dates) {
+  if (!Array.isArray(dates) || !dates.length) return '';
+  return dates.map(function (d) {
+    var parts = String(d || '').split('-');
+    return parts.length === 3 ? (parts[2] + '/' + parts[1] + '/' + parts[0]) : String(d || '');
+  }).filter(Boolean).join(', ');
+}
+
+function formatCompletionRequest_(status) {
+  if (!status || status === 'none') return '';
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
@@ -936,48 +1023,50 @@ function buildFlagsSummary_(flags) {
  * If any download fails, the sheet is left as it was.
  */
 function syncFromSupabase() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(MIRROR_SHEET_NAME) || ss.insertSheet(MIRROR_SHEET_NAME);
-  ss.toast('Downloading data from Supabase...', 'CRM Mirror');
+  withScriptLock_('syncFromSupabase', function () {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName(MIRROR_SHEET_NAME) || ss.insertSheet(MIRROR_SHEET_NAME);
+    ss.toast('Downloading data from Supabase...', 'CRM Mirror');
 
-  var students = _fetchAll('students', 'select=id,first_name,last_name,email,phone,address,eircode,dob,created_at');
-  var enrollments = students && _fetchAll('enrollments',
-    'select=id,student_id,status,course_variant,is_priority,notes,invited_date,confirmed_date,completed_date,created_at,course:courses(name)');
-  var flags = enrollments && _fetchAll('student_flags', 'select=id,student_id,comment,course:courses(name)');
-  if (!flags) {
-    log_('CRM Mirror: download from Supabase failed, sheet left unchanged', 'ERROR');
-    ss.toast('Could not download from Supabase. The sheet was left unchanged; details in SystemLogs.', 'CRM Mirror ❌');
-    return;
-  }
+    var students = _fetchAll('students', 'select=id,first_name,last_name,email,phone,address,eircode,dob,created_at');
+    var enrollments = students && _fetchAll('enrollments',
+      'select=id,student_id,status,course_variant,is_priority,notes,invited_date,invited_dates,confirmed_date,completed_date,completion_request_status,exclude_from_reports,created_at,course:courses(name)');
+    var flags = enrollments && _fetchAll('student_flags', 'select=id,student_id,comment,course:courses(name)');
+    if (!flags) {
+      log_('CRM Mirror: download from Supabase failed, sheet left unchanged', 'ERROR');
+      ss.toast('Could not download from Supabase. The sheet was left unchanged; details in SystemLogs.', 'CRM Mirror ❌');
+      return;
+    }
 
-  var tz = ss.getSpreadsheetTimeZone();
-  var studentById = {}, flagsByStudent = {}, enrolled = {};
-  students.forEach(function (s) { studentById[s.id] = s; });
-  flags.forEach(function (f) { (flagsByStudent[f.student_id] = flagsByStudent[f.student_id] || []).push(f); });
+    var tz = ss.getSpreadsheetTimeZone();
+    var studentById = {}, flagsByStudent = {}, enrolled = {};
+    students.forEach(function (s) { studentById[s.id] = s; });
+    flags.forEach(function (f) { (flagsByStudent[f.student_id] = flagsByStudent[f.student_id] || []).push(f); });
 
-  // Course A→Z, then board order (Requested → … → Rejected), then newest first.
-  enrollments.sort(function (a, b) {
-    var an = a.course ? a.course.name : '', bn = b.course ? b.course.name : '';
-    return an.localeCompare(bn) ||
-      STATUS_ORDER_.indexOf(statusLabel_(a.status)) - STATUS_ORDER_.indexOf(statusLabel_(b.status)) ||
-      String(b.created_at || '').localeCompare(String(a.created_at || ''));
-  });
+    // Course A→Z, then board order (Requested → … → Rejected), then newest first.
+    enrollments.sort(function (a, b) {
+      var an = a.course ? a.course.name : '', bn = b.course ? b.course.name : '';
+      return an.localeCompare(bn) ||
+        STATUS_ORDER_.indexOf(statusLabel_(a.status)) - STATUS_ORDER_.indexOf(statusLabel_(b.status)) ||
+        String(b.created_at || '').localeCompare(String(a.created_at || ''));
+    });
 
-  var records = enrollments.map(function (e) {
-    enrolled[e.student_id] = true;
-    return { s: studentById[e.student_id] || {}, e: e };
-  });
-  students.forEach(function (s) {
-    if (!enrolled[s.id]) records.push({ s: s, e: {} });
-  });
-  var rows = records.map(function (r) {
-    r.flags = flagsByStudent[r.s.id || r.e.student_id];
-    r.tz = tz;
-    return MIRROR_COLUMNS.map(function (col) { return col.value(r); });
-  });
+    var records = enrollments.map(function (e) {
+      enrolled[e.student_id] = true;
+      return { s: studentById[e.student_id] || {}, e: e };
+    });
+    students.forEach(function (s) {
+      if (!enrolled[s.id]) records.push({ s: s, e: {} });
+    });
+    var rows = records.map(function (r) {
+      r.flags = flagsByStudent[r.s.id || r.e.student_id];
+      r.tz = tz;
+      return MIRROR_COLUMNS.map(function (col) { return col.value(r); });
+    });
 
-  writeMirror_(sheet, rows, tz);
-  ss.toast('✅ ' + enrollments.length + ' enrollments, ' + students.length + ' students', 'CRM Mirror');
+    writeMirror_(sheet, rows, tz);
+    ss.toast('✅ ' + enrollments.length + ' enrollments, ' + students.length + ' students', 'CRM Mirror');
+  }, { toastOnSkip: true });
 }
 
 function writeMirror_(sheet, rows, tz) {
@@ -1103,6 +1192,8 @@ function setupTriggers() {
 
 /**
  * Logs a message to the execution log and the SystemLogs sheet (last ~1000 entries).
+ * When level === 'ERROR' and ALERT_EMAIL is set in Script Properties, sends a
+ * throttled email alert (at most once every 30 minutes).
  */
 function log_(message, level) {
   level = level || 'INFO';
@@ -1130,6 +1221,32 @@ function log_(message, level) {
   } catch (e) {
     console.error('Failed to write log to SystemLogs sheet: ' + e);
   }
+
+  if (level === 'ERROR') {
+    try {
+      var props = PropertiesService.getScriptProperties();
+      var alertEmail = (props.getProperty('ALERT_EMAIL') || '').trim();
+      if (alertEmail) {
+        var ALERT_THROTTLE_MS = 30 * 60 * 1000; // 30 minutes
+        var nowMs = Date.now();
+        var lastAlertRaw = props.getProperty('LAST_ALERT_AT');
+        var lastAlertMs = lastAlertRaw ? parseInt(lastAlertRaw, 10) : 0;
+        if (!lastAlertMs || isNaN(lastAlertMs) || (nowMs - lastAlertMs) >= ALERT_THROTTLE_MS) {
+          props.setProperty('LAST_ALERT_AT', String(nowMs));
+          var ssName = '';
+          try { ssName = SpreadsheetApp.getActiveSpreadsheet().getName(); } catch (ignore) {}
+          MailApp.sendEmail({
+            to: alertEmail,
+            subject: '[CRM Sync ERROR]' + (ssName ? ' ' + ssName : ''),
+            body: 'An error occurred in CRM Sync (' + timestamp.toISOString() + '):\n\n' +
+              message + '\n\n(Further error emails are throttled for 30 minutes. Check the SystemLogs sheet for full details.)'
+          });
+        }
+      }
+    } catch (alertErr) {
+      console.error('Failed to send error alert email: ' + alertErr);
+    }
+  }
 }
 
 // ==========================================
@@ -1141,111 +1258,118 @@ function log_(message, level) {
  * find students whose phone number is missing in Supabase, and update them.
  */
 function syncMissingPhoneNumbers() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(SOURCE_SHEET_NAME);
-  if (!sheet) {
-    ss.toast('Sheet "' + SOURCE_SHEET_NAME + '" not found.', 'Error');
-    return;
-  }
-
-  var lastRow = sheet.getLastRow();
-  var numCols = sheet.getLastColumn();
-  if (lastRow < 2 || numCols < 3) {
-    ss.toast('No data in ' + SOURCE_SHEET_NAME, 'CRM Sync');
-    return;
-  }
-
-  ss.toast('Fetching students from Supabase...', 'Phone Sync');
-  var allStudents = _fetchAll('students', 'select=id,first_name,last_name,email,phone');
-  if (!allStudents || allStudents.length === 0) {
-    ss.toast('No students found in Supabase.', 'Error');
-    return;
-  }
-
-  var studentsByEmail = {};
-  var studentsByName = {};
-  for (var i = 0; i < allStudents.length; i++) {
-    var st = allStudents[i];
-    if (st.email) {
-      var emKey = String(st.email).trim().toLowerCase();
-      if (!studentsByEmail[emKey]) studentsByEmail[emKey] = [];
-      studentsByEmail[emKey].push(st);
+  withScriptLock_('syncMissingPhoneNumbers', function () {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName(SOURCE_SHEET_NAME);
+    if (!sheet) {
+      ss.toast('Sheet "' + SOURCE_SHEET_NAME + '" not found.', 'Error');
+      return;
     }
-    var nameKey = (String(st.first_name || '').trim().toLowerCase() + '|' + String(st.last_name || '').trim().toLowerCase()).replace(/\s+/g, '');
-    if (nameKey !== '|') {
-      studentsByName[nameKey] = st;
+
+    var lastRow = sheet.getLastRow();
+    var numCols = sheet.getLastColumn();
+    if (lastRow < 2 || numCols < 3) {
+      ss.toast('No data in ' + SOURCE_SHEET_NAME, 'CRM Sync');
+      return;
     }
-  }
 
-  var headers = sheet.getRange(1, 1, 1, numCols).getValues()[0];
-  var headerMap = getSourceHeaderMap_(headers);
+    ss.toast('Fetching students from Supabase...', 'Phone Sync');
+    var allStudents = _fetchAll('students', 'select=id,first_name,last_name,email,phone');
+    if (!allStudents || allStudents.length === 0) {
+      ss.toast('No students found in Supabase.', 'Error');
+      return;
+    }
 
-  if (headerMap.phone === -1) {
-    ss.toast('Could not detect Phone column in ' + SOURCE_SHEET_NAME + '. Check column headers.', 'Error');
-    return;
-  }
+    var studentsByEmail = {};
+    var studentsByName = {};
+    for (var i = 0; i < allStudents.length; i++) {
+      var st = allStudents[i];
+      if (st.email) {
+        var emKey = String(st.email).trim().toLowerCase();
+        if (!studentsByEmail[emKey]) studentsByEmail[emKey] = [];
+        studentsByEmail[emKey].push(st);
+      }
+      var nameKey = (String(st.first_name || '').trim().toLowerCase() + '|' + String(st.last_name || '').trim().toLowerCase()).replace(/\s+/g, '');
+      if (nameKey !== '|') {
+        studentsByName[nameKey] = st;
+      }
+    }
 
-  var values = sheet.getRange(2, 1, lastRow - 1, numCols).getValues();
-  var updatedCount = 0;
-  var alreadySetCount = 0;
-  var notFoundCount = 0;
+    var headers = sheet.getRange(1, 1, 1, numCols).getValues()[0];
+    var headerMap = getSourceHeaderMap_(headers);
 
-  for (var r = 0; r < values.length; r++) {
-    var row = values[r];
-    var rawPhone = row[headerMap.phone];
-    var normalizedPhone = normalizePhone(rawPhone);
-    if (!normalizedPhone) continue;
+    if (headerMap.phone === -1) {
+      ss.toast('Could not detect Phone column in ' + SOURCE_SHEET_NAME + '. Check column headers.', 'Error');
+      return;
+    }
 
-    var email = getRowEmail_(row, headerMap);
+    var values = sheet.getRange(2, 1, lastRow - 1, numCols).getValues();
+    var updatedCount = 0;
+    var failedCount = 0;
+    var alreadySetCount = 0;
+    var notFoundCount = 0;
 
-    var fName = headerMap.firstName !== -1 ? String(row[headerMap.firstName] || '').trim() : '';
-    var lName = headerMap.lastName !== -1 ? String(row[headerMap.lastName] || '').trim() : '';
+    for (var r = 0; r < values.length; r++) {
+      var row = values[r];
+      var rawPhone = row[headerMap.phone];
+      var normalizedPhone = normalizePhone(rawPhone);
+      if (!normalizedPhone) continue;
 
-    var targetStudent = null;
-    if (email && studentsByEmail[email]) {
-      var candidates = studentsByEmail[email];
-      for (var c = 0; c < candidates.length; c++) {
-        if (areNamesSimilar_(fName, lName, candidates[c].first_name, candidates[c].last_name)) {
-          targetStudent = candidates[c];
-          break;
+      var email = getRowEmail_(row, headerMap);
+
+      var fName = headerMap.firstName !== -1 ? String(row[headerMap.firstName] || '').trim() : '';
+      var lName = headerMap.lastName !== -1 ? String(row[headerMap.lastName] || '').trim() : '';
+
+      var targetStudent = null;
+      if (email && studentsByEmail[email]) {
+        var candidates = studentsByEmail[email];
+        for (var c = 0; c < candidates.length; c++) {
+          if (areNamesSimilar_(fName, lName, candidates[c].first_name, candidates[c].last_name)) {
+            targetStudent = candidates[c];
+            break;
+          }
+        }
+        if (!targetStudent && candidates.length === 1) {
+          targetStudent = candidates[0];
         }
       }
-      if (!targetStudent && candidates.length === 1) {
-        targetStudent = candidates[0];
+
+      if (!targetStudent) {
+        var nKey = (fName.toLowerCase() + '|' + lName.toLowerCase()).replace(/\s+/g, '');
+        if (studentsByName[nKey]) {
+          targetStudent = studentsByName[nKey];
+        }
+      }
+
+      if (!targetStudent) {
+        notFoundCount++;
+        continue;
+      }
+
+      var currPhone = targetStudent.phone ? String(targetStudent.phone).trim() : '';
+      if (!currPhone || currPhone === '' || currPhone === '+0000000') {
+        var res = _fetch('students?id=eq.' + targetStudent.id, 'patch', { 
+          phone: normalizedPhone,
+          last_synced_at: new Date().toISOString()
+        });
+        if (res !== null) {
+          targetStudent.phone = normalizedPhone;
+          updatedCount++;
+          Logger.log('Updated phone for ' + targetStudent.first_name + ' ' + targetStudent.last_name + ' (' + targetStudent.email + ') -> ' + normalizedPhone);
+        } else {
+          failedCount++;
+          log_('syncMissingPhoneNumbers: failed to update phone for student ' + targetStudent.id + ' (' + targetStudent.email + ')', 'ERROR');
+        }
+      } else {
+        alreadySetCount++;
       }
     }
 
-    if (!targetStudent) {
-      var nKey = (fName.toLowerCase() + '|' + lName.toLowerCase()).replace(/\s+/g, '');
-      if (studentsByName[nKey]) {
-        targetStudent = studentsByName[nKey];
-      }
-    }
-
-    if (!targetStudent) {
-      notFoundCount++;
-      continue;
-    }
-
-    var currPhone = targetStudent.phone ? String(targetStudent.phone).trim() : '';
-    if (!currPhone || currPhone === '' || currPhone === '+0000000') {
-      var res = _fetch('students?id=eq.' + targetStudent.id, 'patch', { 
-        phone: normalizedPhone,
-        last_synced_at: new Date().toISOString()
-      });
-      if (res !== null) {
-        targetStudent.phone = normalizedPhone;
-        updatedCount++;
-        Logger.log('Updated phone for ' + targetStudent.first_name + ' ' + targetStudent.last_name + ' (' + targetStudent.email + ') -> ' + normalizedPhone);
-      }
-    } else {
-      alreadySetCount++;
-    }
-  }
-
-  var summary = '✅ Done! Updated ' + updatedCount + ' phone numbers.';
-  if (alreadySetCount > 0) summary += ' (' + alreadySetCount + ' already set)';
-  ss.toast(summary, 'Phone Sync Complete');
+    var summary = '✅ Done! Updated ' + updatedCount + ' phone numbers.';
+    if (alreadySetCount > 0) summary += ' (' + alreadySetCount + ' already set)';
+    if (failedCount > 0) summary += ' (' + failedCount + ' failed — check SystemLogs)';
+    ss.toast(summary, 'Phone Sync Complete');
+  }, { toastOnSkip: true });
 }
 
 // ==========================================
@@ -1285,26 +1409,33 @@ function addMissingLanguages() {
     'The list is on the "' + MISSING_LANGUAGES_SHEET_NAME + '" sheet.', ui.ButtonSet.YES_NO);
   if (answer !== ui.Button.YES) return;
 
-  var rows = found.map(function (m) {
-    return { student_id: m.studentId, course_id: m.courseId, course_variant: m.language, status: 'requested', created_at: m.registered };
-  });
-  for (var i = 0; i < rows.length; i += BATCH_SIZE) {
-    _fetch('enrollments?on_conflict=student_id,course_id,course_variant', 'post', rows.slice(i, i + BATCH_SIZE), {
-      'Prefer': 'resolution=ignore-duplicates'
+  // Acquire script lock after the modal confirmation so an idle prompt never blocks onFormSubmit
+  withScriptLock_('addMissingLanguages', function () {
+    var rows = found.map(function (m) {
+      return { student_id: m.studentId, course_id: m.courseId, course_variant: m.language, status: 'requested', created_at: m.registered };
     });
-  }
+    for (var i = 0; i < rows.length; i += BATCH_SIZE) {
+      var batchRes = _fetch('enrollments?on_conflict=student_id,course_id,course_variant', 'post', rows.slice(i, i + BATCH_SIZE), {
+        'Prefer': 'resolution=ignore-duplicates'
+      });
+      if (batchRes === null) {
+        log_('addMissingLanguages: failed to upsert batch starting at index ' + i, 'ERROR');
+        throw new Error('Failed to upsert missing languages batch at index ' + i + '.');
+      }
+    }
 
-  // What the database let in: before migration 81 its duplicate check skips every second language
-  var left = findMissingLanguages_();
-  if (!left) return;
-  writeMissingLanguagesSheet_(left);
-  var added = found.length - left.length;
-  log_('Missing languages: added ' + added + ' of ' + found.length, 'INFO');
-  if (added === 0) {
-    ui.alert('Nothing was added. Run supabase/81_language_queues.sql in Supabase first: without it the database skips a second language on a course.');
-  } else {
-    ss.toast('✅ Added ' + added + ' language(s)' + (left.length ? ', ' + left.length + ' not added (still on the sheet)' : '') + '.', 'Missing languages');
-  }
+    // What the database let in: before migration 81 its duplicate check skips every second language
+    var left = findMissingLanguages_();
+    if (!left) return;
+    writeMissingLanguagesSheet_(left);
+    var added = found.length - left.length;
+    log_('Missing languages: added ' + added + ' of ' + found.length, 'INFO');
+    if (added === 0) {
+      ui.alert('Nothing was added. Run supabase/81_language_queues.sql in Supabase first: without it the database skips a second language on a course.');
+    } else {
+      ss.toast('✅ Added ' + added + ' language(s)' + (left.length ? ', ' + left.length + ' not added (still on the sheet)' : '') + '.', 'Missing languages');
+    }
+  }, { toastOnSkip: true });
 }
 
 /**

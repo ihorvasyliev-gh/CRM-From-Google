@@ -9,15 +9,20 @@ if (!connectionString) {
   process.exit(1);
 }
 
-// SSL обязателен для Supabase. С сертификатом Supabase (Project Settings -> Database ->
-// SSL Configuration -> Download certificate, путь в SUPABASE_CA_CERT) сервер проверяется;
-// без него соединение шифруется, но подлинность сервера не проверяется.
+// SSL обязателен для Supabase. По умолчанию сертификат сервера проверяется
+// через SUPABASE_CA_CERT (Project Settings -> Database -> SSL Configuration ->
+// Download certificate) либо системное хранилище CA. Отключить проверку можно
+// только явным флагом ALLOW_INSECURE_TLS=1 (не рекомендуется).
 const caPath = process.env.SUPABASE_CA_CERT;
-const ssl = caPath
-  ? { ca: fs.readFileSync(caPath, 'utf8'), rejectUnauthorized: true }
-  : { rejectUnauthorized: false };
-if (!caPath) {
-  console.warn('Внимание: SUPABASE_CA_CERT не задан — сертификат сервера не проверяется.');
+const allowInsecureTls = process.env.ALLOW_INSECURE_TLS === '1' || process.env.ALLOW_INSECURE_TLS === 'true';
+let ssl;
+if (caPath) {
+  ssl = { ca: fs.readFileSync(caPath, 'utf8'), rejectUnauthorized: true };
+} else if (allowInsecureTls) {
+  console.warn('Внимание: ALLOW_INSECURE_TLS=1 — проверка сертификата сервера отключена.');
+  ssl = { rejectUnauthorized: false };
+} else {
+  ssl = { rejectUnauthorized: true };
 }
 
 const client = new Client({ connectionString, ssl });
@@ -170,6 +175,9 @@ async function run() {
     console.log(`\nРезервное копирование завершено! Файл сохранен в: ${backupFile}`);
   } catch (err) {
     console.error('Ошибка создания бэкапа:', err);
+    if (!caPath && !allowInsecureTls && err && /certificate|SELF_SIGNED|UNABLE_TO_VERIFY|CERT/i.test(String(err.code || err.message || ''))) {
+      console.error('Подсказка: скачайте сертификат Supabase (Project Settings -> Database -> SSL Configuration) и укажите путь в SUPABASE_CA_CERT (или, для отладки без проверки, задайте ALLOW_INSECURE_TLS=1).');
+    }
     process.exitCode = 1;
     // Недописанный файл выглядел бы как настоящая копия
     if (writeStream) {

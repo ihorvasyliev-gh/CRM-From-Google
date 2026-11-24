@@ -16,9 +16,9 @@ if (-not $DbUrl) {
     $RootEnv = Join-Path $PSScriptRoot "..\frontend\.env"
     if (Test-Path $RootEnv) {
         $EnvContent = Get-Content $RootEnv
-        $UrlLine = $EnvContent | Where-Object { $_ -match "^SUPABASE_DB_URL=" -or $_ -match "^DATABASE_URL=" }
+        $UrlLine = $EnvContent | Where-Object { $_ -match "^SUPABASE_DB_URL=" -or $_ -match "^DATABASE_URL=" } | Select-Object -First 1
         if ($UrlLine) {
-            $DbUrl = ($UrlLine -split "=")[1].Trim().Trim('"').Trim("'")
+            $DbUrl = ($UrlLine -split "=", 2)[1].Trim().Trim('"').Trim("'")
         }
     }
 }
@@ -54,11 +54,22 @@ if (-not (Test-Path $NodeModulesPath)) {
     }
 }
 
-# 4. Запуск резервного копирования через Node.js
+# 4. Запуск резервного копирования через Node.js (передаём URL через переменную окружения, не в аргументах процесса)
 Write-Host "Запуск резервного копирования данных..." -ForegroundColor Green
-node $DumpScript $DbUrl
+$PrevDbUrl = $env:SUPABASE_DB_URL
+try {
+    $env:SUPABASE_DB_URL = $DbUrl
+    node $DumpScript
+    $ExitCode = $LASTEXITCODE
+} finally {
+    if ($null -eq $PrevDbUrl) {
+        Remove-Item Env:SUPABASE_DB_URL -ErrorAction SilentlyContinue
+    } else {
+        $env:SUPABASE_DB_URL = $PrevDbUrl
+    }
+}
 
-if ($LASTEXITCODE -eq 0) {
+if ($ExitCode -eq 0) {
     Write-Host "`nГотово!" -ForegroundColor Green
 } else {
     Write-Host "`nОшибка резервного копирования." -ForegroundColor Red
