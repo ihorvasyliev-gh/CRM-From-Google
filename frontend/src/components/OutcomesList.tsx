@@ -32,6 +32,7 @@ import {
     matchesCompletionDate,
     completionDateRangeHint,
     formatCourseDatesTooltip,
+    formatCompletionFilterChipValue,
     type CompletionDateFilter,
 } from '../lib/outcomeCompletionDate';
 import { getAvatarGradient } from '../lib/types';
@@ -49,6 +50,14 @@ import { fetchGraduatesFn, type GraduateRow } from '../hooks/useOutcomes';
 import { useProgressiveList } from '../hooks/useProgressiveList';
 import { SortHeader } from './OutcomeTableSort';
 import { sortOutcomeRows, type OutcomeSort } from '../lib/outcomeSort';
+import {
+    MobileFiltersButton,
+    MobileQuickFilterStrip,
+    MobileRowActions,
+    MobileSortSelect,
+    OutcomeFiltersSheet,
+    type ActiveOutcomeFilter,
+} from './OutcomeMobileControls';
 
 export interface OutcomesListProps {
     onOpenStudentDetail?: (studentId: string) => void;
@@ -114,7 +123,7 @@ export default function OutcomesList({ onOpenStudentDetail, onOpenStudentByEmail
                     setView(value);
                     setSearchParams(value === 'lists' ? { view: 'lists' } : {}, { replace: true });
                 }}
-                className="w-fit"
+                className="w-full sm:w-fit"
                 options={[
                     { value: 'graduates', label: 'CRM Graduates', icon: <GraduationCap size={13} /> },
                     { value: 'lists', label: 'External Lists (Action 11…)', icon: <Users size={13} /> },
@@ -161,6 +170,9 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
     const [callBusy, setCallBusy] = useState<Set<string>>(new Set());
     const [busyMode, setBusyMode] = useState<'sending' | 'marking' | null>(null);
     const [editingGrad, setEditingGrad] = useState<GraduateRow | null>(null);
+    const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+    // Highlights the row just dialed on a phone so it's easy to spot when returning from the dialer
+    const [lastDialedId, setLastDialedId] = useState<string | null>(null);
     // Kept while the editor animates out; a fresh editor for every opening
     const editMount = useDialogMount(!!editingGrad);
     const shownGrad = useLastPresent(editingGrad);
@@ -179,6 +191,7 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
 
     // Calls filter only applies to people awaiting a reply (not Responded or already Working)
     const callsApplicable = filterStatus !== 'responded' && filterEmployment !== 'working';
+    const isToCallActive = callsApplicable && filterCall === 'not_called';
 
     function handleSelectStatus(next: OutcomeFilter) {
         setFilterStatus(next);
@@ -196,6 +209,24 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
         }
         if (next !== 'all' && filterStatus === 'not_contacted') {
             setFilterStatus('all');
+        }
+    }
+
+    function handleToggleToCall() {
+        if (isToCallActive) {
+            setFilterCall('all');
+            return;
+        }
+        if (filterStatus === 'responded') setFilterStatus('all');
+        if (filterEmployment === 'working') setFilterEmployment('all');
+        setFilterCall('not_called');
+    }
+
+    function handleCompletionDateChange(next: CompletionDateFilter) {
+        setFilterCompleted(next);
+        if (next !== 'custom') {
+            setCompletedFrom('');
+            setCompletedTo('');
         }
     }
 
@@ -291,14 +322,51 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
         return counts;
     }, [graduates]);
 
-    const hasActiveFilters = filterStatus !== 'all'
-        || filterEmployment !== 'all'
-        || effectiveCourse !== 'all'
-        || filterCompleted !== 'all'
-        || (callsApplicable && filterCall !== 'all')
-        || searchQuery.trim() !== '';
+    const activeMobileFilters: ActiveOutcomeFilter[] = [];
+    if (filterStatus !== 'all') {
+        activeMobileFilters.push({
+            id: 'status',
+            label: 'Status',
+            value: filterStatus === 'not_contacted' ? 'Not Contacted' : filterStatus === 'pending' ? 'Pending' : 'Responded',
+            onRemove: () => handleSelectStatus('all'),
+        });
+    }
+    if (filterEmployment !== 'all') {
+        activeMobileFilters.push({
+            id: 'employment',
+            label: 'Employment',
+            value: filterEmployment === 'working' ? 'Working' : 'Not working',
+            onRemove: () => handleSelectEmployment('all'),
+        });
+    }
+    if (effectiveCourse !== 'all') {
+        activeMobileFilters.push({
+            id: 'course',
+            label: 'Course',
+            value: effectiveCourse,
+            onRemove: () => setFilterCourse('all'),
+        });
+    }
+    if (filterCompleted !== 'all') {
+        activeMobileFilters.push({
+            id: 'completed',
+            label: 'Completed',
+            value: formatCompletionFilterChipValue(filterCompleted, completedFrom, completedTo),
+            onRemove: () => handleCompletionDateChange('all'),
+        });
+    }
+    if (callsApplicable && filterCall !== 'all') {
+        activeMobileFilters.push({
+            id: 'call',
+            label: 'Calls',
+            value: filterCall === 'called' ? 'No answer' : 'Not called yet',
+            onRemove: () => setFilterCall('all'),
+        });
+    }
 
-    function clearAllFilters() {
+    const hasActiveFilters = activeMobileFilters.length > 0 || searchQuery.trim() !== '';
+
+    function clearSheetFilters() {
         setFilterStatus('all');
         setFilterEmployment('all');
         setFilterCourse('all');
@@ -306,11 +374,16 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
         setCompletedFrom('');
         setCompletedTo('');
         setFilterCall('all');
+    }
+
+    function clearAllFilters() {
+        clearSheetFilters();
         setSearchQuery('');
     }
 
     /** Sets or clears "called, no answer"; the list shows it at once and goes back if saving fails. */
     async function toggleCallMark(grad: GraduateRow) {
+        if (lastDialedId === grad.student_id) setLastDialedId(null);
         const calledAt = grad.called_no_answer_at ? null : new Date().toISOString();
         const patch = (value: string | null) => queryClient.setQueryData<GraduateRow[]>(['outcomes_graduates'], old =>
             old?.map(g => g.student_id === grad.student_id ? { ...g, called_no_answer_at: value } : g));
@@ -543,15 +616,17 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
     }
 
     return (
-        <div className={`space-y-4 ${selectedIds.size > 0 ? 'pb-24' : 'pb-8'}`}>
-            {/* Clickable KPI Row */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className={`space-y-3 md:space-y-4 ${selectedIds.size > 0 ? 'pb-24' : 'pb-8'}`}>
+            {/* Clickable KPI Row: compact horizontal swipe strip on phones, 2x2 / 4-col grid on md+ */}
+            <div className="flex overflow-x-auto scrollbar-none snap-x snap-mandatory gap-2.5 -mx-1 px-1 pb-0.5 md:mx-0 md:px-0 md:pb-0 md:grid md:grid-cols-2 lg:grid-cols-4 md:gap-4 md:overflow-visible">
                 <StatTile
                     label="Total graduates"
                     icon={GraduationCap}
                     tone="brand"
                     value={stats.total}
                     hint={stats.notContacted > 0 ? `${stats.notContacted} not contacted` : 'Everyone contacted'}
+                    compactMobile
+                    className="shrink-0 w-[148px] snap-start md:w-auto"
                     onClick={() => {
                         setFilterStatus('all');
                         setFilterEmployment('all');
@@ -564,6 +639,8 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
                     tone="completed"
                     value={stats.responseRate !== null ? `${stats.responseRate}%` : '—'}
                     hint={stats.asked > 0 ? `${stats.answered} of ${stats.asked} contacted` : 'No surveys sent yet'}
+                    compactMobile
+                    className="shrink-0 w-[148px] snap-start md:w-auto"
                     onClick={() => {
                         setFilterStatus('responded');
                         setFilterEmployment('all');
@@ -576,6 +653,8 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
                     tone="success"
                     value={stats.working}
                     hint={stats.employmentRate !== null ? `${stats.employmentRate}% of answered` : 'No answers yet'}
+                    compactMobile
+                    className="shrink-0 w-[148px] snap-start md:w-auto"
                     onClick={() => {
                         setFilterStatus('all');
                         setFilterEmployment('working');
@@ -594,6 +673,8 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
                                 ? `${stats.notContacted} not contacted`
                                 : undefined
                     }
+                    compactMobile
+                    className="shrink-0 w-[148px] snap-start md:w-auto"
                     onClick={() => {
                         setFilterStatus('pending');
                         setFilterEmployment('all');
@@ -601,15 +682,20 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
                 />
             </div>
 
-            {/* Always-visible Toolbar */}
-            <div className="bg-surface rounded-2xl border border-border-subtle shadow-card p-3 sm:p-3.5 space-y-3">
-                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            {/* Toolbar: compact Search + Filters sheet on phones, always-visible full bar on md+ */}
+            <div className="bg-transparent md:bg-surface rounded-none md:rounded-2xl border-0 md:border md:border-border-subtle shadow-none md:shadow-card p-0 md:p-3.5 space-y-2 md:space-y-3">
+                <div className="flex items-center md:flex-wrap gap-2 md:gap-3">
                     <SearchInput
-                        wrapperClassName="flex-1 min-w-[200px]"
+                        wrapperClassName="flex-1 min-w-0 md:min-w-[200px]"
                         value={searchQuery}
                         onChange={setSearchQuery}
                         placeholder="Name, email, phone, course or field…"
                         aria-label="Search graduates"
+                    />
+
+                    <MobileFiltersButton
+                        activeCount={activeMobileFilters.length}
+                        onClick={() => setFilterSheetOpen(true)}
                     />
 
                     {uniqueCourses.length > 1 && (
@@ -617,7 +703,7 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
                             aria-label="Filter by course"
                             value={effectiveCourse}
                             onChange={e => setFilterCourse(e.target.value)}
-                            className="text-xs sm:text-sm bg-background border border-border-strong rounded-xl px-2.5 py-2 text-primary focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 max-w-[200px]"
+                            className="hidden md:block text-xs sm:text-sm bg-background border border-border-strong rounded-xl px-2.5 py-2 text-primary focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 max-w-[200px]"
                         >
                             <option value="all">All courses</option>
                             {uniqueCourses.map(c => (
@@ -630,15 +716,8 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
                         aria-label="Filter by completion date"
                         value={filterCompleted}
                         title={completionHint ?? undefined}
-                        onChange={e => {
-                            const next = e.target.value as CompletionDateFilter;
-                            setFilterCompleted(next);
-                            if (next !== 'custom') {
-                                setCompletedFrom('');
-                                setCompletedTo('');
-                            }
-                        }}
-                        className="text-xs sm:text-sm bg-background border border-border-strong rounded-xl px-2.5 py-2 text-primary focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 max-w-[210px]"
+                        onChange={e => handleCompletionDateChange(e.target.value as CompletionDateFilter)}
+                        className="hidden md:block text-xs sm:text-sm bg-background border border-border-strong rounded-xl px-2.5 py-2 text-primary focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 max-w-[210px]"
                     >
                         <option value="all">Completed: Any time</option>
                         <optgroup label="Recently">
@@ -656,12 +735,12 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
                         </optgroup>
                     </select>
 
-                    <span className="text-xs text-muted font-medium whitespace-nowrap">
+                    <span className="hidden md:inline text-xs text-muted font-medium whitespace-nowrap">
                         {filtered.length} of {graduates.length} graduate{graduates.length !== 1 ? 's' : ''}
                     </span>
 
                     {filterCompleted !== 'all' && filterCompleted !== 'custom' && completionHint && (
-                        <span className="text-xs text-muted whitespace-nowrap">
+                        <span className="hidden md:inline text-xs text-muted whitespace-nowrap">
                             ({completionHint})
                         </span>
                     )}
@@ -670,16 +749,26 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
                         <button
                             type="button"
                             onClick={clearAllFilters}
-                            className="text-xs font-medium text-muted hover:text-primary flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-surface-elevated transition-colors"
+                            className="hidden md:flex text-xs font-medium text-muted hover:text-primary items-center gap-1 px-2 py-1 rounded-lg hover:bg-surface-elevated transition-colors"
                         >
                             <X size={12} /> Clear
                         </button>
                     )}
                 </div>
 
+                {/* Mobile quick "To call" toggle + active filter chips */}
+                <MobileQuickFilterStrip
+                    showToCall={callCounts.not_called > 0 || isToCallActive}
+                    toCallActive={isToCallActive}
+                    toCallCount={callCounts.not_called}
+                    onToggleToCall={handleToggleToCall}
+                    activeFilters={activeMobileFilters}
+                    onClearAll={clearSheetFilters}
+                />
+
                 {filterCompleted === 'custom' && (
                     <div
-                        className="flex flex-wrap items-center gap-2 pt-2.5 border-t border-border-subtle"
+                        className="hidden md:flex flex-wrap items-center gap-2 pt-2.5 border-t border-border-subtle"
                         role="group"
                         aria-label="Custom completion date range"
                     >
@@ -724,8 +813,8 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
                     </div>
                 )}
 
-                {/* Compact always-visible filter pills */}
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-2.5 border-t border-border-subtle">
+                {/* Desktop compact always-visible filter pills */}
+                <div className="hidden md:flex flex-wrap items-center gap-x-4 gap-y-2 pt-2.5 border-t border-border-subtle">
                     {/* Status Filter */}
                     <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter by status">
                         <span className="text-xs font-medium text-muted mr-0.5">Status:</span>
@@ -785,7 +874,7 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
             {/* Table */}
             <div className="bg-surface rounded-2xl border border-border-subtle shadow-card overflow-hidden">
                 {filtered.length === 0 ? (
-                    <div className="text-center py-16">
+                    <div className="text-center py-16 px-4">
                         <div className="w-16 h-16 bg-surface-elevated rounded-full flex items-center justify-center mx-auto mb-4">
                             <Briefcase size={28} className="text-muted" />
                         </div>
@@ -797,7 +886,7 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
                         <table className="w-full text-sm">
                             <thead>
                                 <tr className="border-b border-border-subtle bg-surface-elevated/50">
-                                    <th className="py-3 px-4 text-left w-10">
+                                    <th className="py-2.5 sm:py-3 pl-3 pr-1.5 sm:px-4 text-left w-8 sm:w-10">
                                         <input
                                             type="checkbox"
                                             checked={filtered.length > 0 && filtered.every(g => selectedIds.has(g.student_id))}
@@ -806,18 +895,32 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
                                             className="rounded-sm border-border-strong text-brand-500 focus:ring-brand-500/50 cursor-pointer"
                                         />
                                     </th>
-                                    <SortHeader label="Student" column="name" sort={sort} onSort={setSort} />
+                                    {/* Mobile header: compact count + 1-tap sort across all columns */}
+                                    <th className="sm:hidden py-2.5 pl-1.5 pr-3 text-left font-normal">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="text-xs font-medium text-muted tabular-nums whitespace-nowrap">
+                                                {filtered.length} / {graduates.length}
+                                            </span>
+                                            <MobileSortSelect
+                                                variant="graduates"
+                                                sort={sort}
+                                                onChange={next => next && setSort(next)}
+                                            />
+                                        </div>
+                                    </th>
+                                    <SortHeader label="Student" column="name" sort={sort} onSort={setSort} className="hidden sm:table-cell" />
                                     <SortHeader label="Courses" column="courses" sort={sort} onSort={setSort} className="hidden md:table-cell" />
                                     <SortHeader label="Completed" column="completed" sort={sort} onSort={setSort} className="hidden lg:table-cell" />
                                     <SortHeader label="Tracking" column="tracking" sort={sort} onSort={setSort} className="hidden sm:table-cell" />
                                     <SortHeader label="Employment" column="employment" sort={sort} onSort={setSort} className="hidden sm:table-cell" />
                                     <SortHeader label="Updated" column="updated" sort={sort} onSort={setSort} className="hidden lg:table-cell" />
-                                    <th className="py-3 px-4 text-right text-xs font-semibold text-muted uppercase tracking-wider"><span className="sr-only sm:not-sr-only">Actions</span></th>
+                                    <th className="hidden sm:table-cell py-3 px-4 text-right text-xs font-semibold text-muted uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {visibleGraduates.map(grad => {
                                     const isSelected = selectedIds.has(grad.student_id);
+                                    const isJustDialed = lastDialedId === grad.student_id;
                                     const isOptedOut = optedOutSet.has(normalizeEmail(grad.email));
                                     const fullDisplayName = `${grad.first_name} ${grad.last_name}`.trim();
                                     const completedDate = effectiveCompletionDate(grad, effectiveCourse);
@@ -831,10 +934,12 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
                                             className={`border-b border-border-subtle/50 transition-colors cursor-pointer ${
                                                 isSelected
                                                     ? 'bg-brand-500/5'
-                                                    : 'hover:bg-surface-elevated/50'
+                                                    : isJustDialed
+                                                        ? 'bg-emerald-500/5 sm:bg-transparent hover:bg-surface-elevated/50'
+                                                        : 'hover:bg-surface-elevated/50'
                                             }`}
                                         >
-                                            <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
+                                            <td className="py-3 pl-3 pr-1.5 sm:px-4 align-top sm:align-middle" onClick={e => e.stopPropagation()}>
                                                 <input
                                                     type="checkbox"
                                                     checked={isSelected}
@@ -844,32 +949,39 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
                                                         toggleSelect(grad.student_id, e.shiftKey);
                                                     }}
                                                     aria-label={`Select ${grad.first_name} ${grad.last_name}`}
-                                                    className="rounded-sm border-border-strong text-brand-500 focus:ring-brand-500/50 cursor-pointer"
+                                                    className="mt-1.5 sm:mt-0 rounded-sm border-border-strong text-brand-500 focus:ring-brand-500/50 cursor-pointer"
                                                 />
                                             </td>
-                                            <td className="py-3 px-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-8 h-8 bg-linear-to-br ${getAvatarGradient(grad.student_id)} rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0`}>
+                                            <td className="py-3 pl-1.5 pr-3 sm:px-4">
+                                                <div className="flex items-start sm:items-center gap-2.5 sm:gap-3">
+                                                    <div className={`w-8 h-8 bg-linear-to-br ${getAvatarGradient(grad.student_id)} rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5 sm:mt-0`}>
                                                         {(grad.first_name[0] || '').toUpperCase()}{(grad.last_name[0] || '').toUpperCase()}
                                                     </div>
-                                                    <div className="min-w-0 max-w-[calc(100vw-13rem)] sm:max-w-none">
-                                                        {onOpenStudentDetail ? (
-                                                            <button
-                                                                type="button"
-                                                                onClick={e => {
-                                                                    e.stopPropagation();
-                                                                    onOpenStudentDetail(grad.student_id);
-                                                                }}
-                                                                className="block font-semibold text-primary text-[13px] truncate max-w-full text-left hover:text-brand-500 hover:underline transition-colors cursor-pointer"
-                                                                title="View student profile"
-                                                            >
-                                                                {fullDisplayName}
-                                                            </button>
-                                                        ) : (
-                                                            <p className="font-semibold text-primary text-[13px] truncate">
-                                                                {fullDisplayName}
-                                                            </p>
-                                                        )}
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-center gap-1.5 min-w-0">
+                                                            {onOpenStudentDetail ? (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={e => {
+                                                                        e.stopPropagation();
+                                                                        onOpenStudentDetail(grad.student_id);
+                                                                    }}
+                                                                    className="block font-semibold text-primary text-[13px] truncate max-w-full text-left hover:text-brand-500 hover:underline transition-colors cursor-pointer"
+                                                                    title="View student profile"
+                                                                >
+                                                                    {fullDisplayName}
+                                                                </button>
+                                                            ) : (
+                                                                <p className="font-semibold text-primary text-[13px] truncate">
+                                                                    {fullDisplayName}
+                                                                </p>
+                                                            )}
+                                                            {isJustDialed && (
+                                                                <span className="sm:hidden shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                                                                    Just called
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                         {grad.email?.trim() && (
                                                             <p className="text-xs text-muted truncate">{grad.email}</p>
                                                         )}
@@ -879,27 +991,61 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
                                                                 <EmailStatusBadges email={grad.email} optedOut={isOptedOut} />
                                                             </div>
                                                         )}
+                                                        {/* Tablet (sm..md): Courses/Completed columns hidden, show Completed date */}
                                                         {completedDate && (
-                                                            <p className="md:hidden text-[11px] text-muted mt-0.5 tabular-nums">
+                                                            <p className="hidden sm:block md:hidden text-[11px] text-muted mt-0.5 tabular-nums">
                                                                 Completed {formatDisplayDate(completedDate)}
                                                             </p>
                                                         )}
-                                                        {/* Phones: the status columns are hidden, so their badges go under the name */}
-                                                        <div className="sm:hidden mt-1 flex flex-wrap items-center gap-1.5">
+                                                        {/* Phones (< sm): courses + completion / updated / sent dates */}
+                                                        {(grad.courses.length > 0 || completedDate || grad.status_updated_at || (grad.tracking_status === 'pending' && grad.last_sent_at)) && (
+                                                            <div className="sm:hidden mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                                                                {grad.courses.map(c => (
+                                                                    <span key={c} className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-700 dark:text-brand-300 truncate max-w-[160px]">
+                                                                        {c}
+                                                                    </span>
+                                                                ))}
+                                                                {completedDate && (
+                                                                    <span className={`text-[11px] tabular-nums ${sort.key === 'completed' ? 'text-primary font-medium' : 'text-muted'}`}>
+                                                                        Completed {formatDisplayDate(completedDate)}
+                                                                    </span>
+                                                                )}
+                                                                {grad.status_updated_at && (
+                                                                    <span className={`text-[11px] tabular-nums ${sort.key === 'updated' ? 'text-primary font-medium' : 'text-muted'}`}>
+                                                                        Updated {formatDisplayDate(grad.status_updated_at)}
+                                                                    </span>
+                                                                )}
+                                                                {grad.tracking_status === 'pending' && grad.last_sent_at && (
+                                                                    <span className="text-[11px] text-muted tabular-nums">
+                                                                        Sent {formatDisplayDate(grad.last_sent_at)}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                        {/* Phones (< sm): status & employment badges */}
+                                                        <div className="sm:hidden mt-1.5 flex flex-wrap items-center gap-1.5">
                                                             <TrackingBadge status={grad.tracking_status} />
                                                             {(grad.tracking_status === 'responded' || (grad.tracking_status === 'pending' && grad.is_working !== null)) && (
                                                                 <EmploymentBadge status={grad.tracking_status} row={grad} />
                                                             )}
-                                                            <CallMarkButton
-                                                                status={grad.tracking_status}
-                                                                calledAt={grad.called_no_answer_at}
-                                                                busy={callBusy.has(grad.student_id)}
-                                                                onToggle={() => toggleCallMark(grad)}
-                                                                name={fullDisplayName}
-                                                            />
                                                         </div>
                                                     </div>
                                                 </div>
+
+                                                {/* Phones (< sm): thumb-friendly Call / No answer / Edit action bar */}
+                                                <MobileRowActions
+                                                    name={fullDisplayName}
+                                                    phone={grad.phone}
+                                                    status={grad.tracking_status}
+                                                    calledAt={grad.called_no_answer_at}
+                                                    callBusy={callBusy.has(grad.student_id)}
+                                                    onDial={() => setLastDialedId(grad.student_id)}
+                                                    onToggleNoAnswer={() => { void toggleCallMark(grad); }}
+                                                    onEdit={() => {
+                                                        if (lastDialedId === grad.student_id) setLastDialedId(null);
+                                                        setEditingGrad(grad);
+                                                    }}
+                                                />
                                             </td>
                                             <td className="py-3 px-4 hidden md:table-cell">
                                                 <div className="flex flex-wrap gap-1">
@@ -956,7 +1102,7 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
                                                     <span className="text-xs text-muted italic">—</span>
                                                 )}
                                             </td>
-                                            <td className="py-3 px-4 text-right">
+                                            <td className="hidden sm:table-cell py-3 px-4 text-right">
                                                 <button
                                                     type="button"
                                                     onClick={e => { e.stopPropagation(); setEditingGrad(grad); }}
@@ -979,6 +1125,46 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
                     </div>
                 )}
             </div>
+
+            <OutcomeFiltersSheet
+                open={filterSheetOpen}
+                onClose={() => setFilterSheetOpen(false)}
+                filteredCount={filtered.length}
+                totalCount={graduates.length}
+                noun="graduate"
+                activeFilterCount={activeMobileFilters.length}
+                onClearAll={clearSheetFilters}
+                filterStatus={filterStatus}
+                onSelectStatus={handleSelectStatus}
+                statusCounts={statusCounts}
+                filterEmployment={filterEmployment}
+                onSelectEmployment={handleSelectEmployment}
+                workingCount={stats.working}
+                notWorkingCount={stats.notWorking}
+                callsApplicable={callsApplicable}
+                filterCall={filterCall}
+                onSelectCall={setFilterCall}
+                callCounts={callCounts}
+                courseFilter={{
+                    courses: uniqueCourses,
+                    value: effectiveCourse,
+                    onChange: setFilterCourse,
+                }}
+                completionFilter={{
+                    value: filterCompleted,
+                    onChange: handleCompletionDateChange,
+                    from: completedFrom,
+                    to: completedTo,
+                    today,
+                    hint: completionHint,
+                    onFromChange: handleCompletedFromChange,
+                    onToChange: handleCompletedToChange,
+                    onResetDates: () => {
+                        setCompletedFrom('');
+                        setCompletedTo('');
+                    },
+                }}
+            />
 
             <OutcomeBulkBar
                 selectedItems={selectedBulkItems}

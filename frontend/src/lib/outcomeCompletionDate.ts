@@ -176,3 +176,19 @@ export function formatCourseDatesTooltip(
         .filter((p): p is string => p !== null);
     return parts.length > 0 ? parts.join(' · ') : undefined;
 }
+
+/** Short label for the active completion date filter chip on mobile. */
+export function formatCompletionFilterChipValue(
+    filter: CompletionDateFilter,
+    from: string,
+    to: string,
+): string {
+    if (filter === 'custom') {
+        if (from && to) return `${formatDisplayDate(from)} – ${formatDisplayDate(to)}`;
+        if (from) return `From ${formatDisplayDate(from)}`;
+        if (to) return `Until ${formatDisplayDate(to)}`;
+        return 'Custom range';
+    }
+    const preset = [...RECENT_COMPLETION_OPTIONS, ...OLDER_COMPLETION_OPTIONS].find(o => o.value === filter);
+    return preset?.label ?? filter;
+}

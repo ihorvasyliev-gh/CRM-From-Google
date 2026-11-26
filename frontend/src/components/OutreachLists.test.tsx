@@ -587,4 +587,79 @@ describe('OutreachLists', () => {
         });
         expect(mockDb.updateCalls[0].payload).not.toHaveProperty('called_no_answer_at');
     });
+
+    it('supports mobile Filters bottom sheet, quick To call chip, 1-tap Sort by, and Call/No answer/Edit row actions', async () => {
+        renderOutreach();
+        await screen.findByText('Alice Byrne');
+
+        // 1. Mobile 1-tap Sort by dropdown supports sorting by IRIS ID, Name, and back to default
+        const sortSelect = screen.getByLabelText('Sort by');
+        const rowNames = () => screen.getAllByRole('row').slice(1).map(r => r.textContent || '');
+
+        fireEvent.change(sortSelect, { target: { value: 'ref:desc' } });
+        expect(rowNames().map(t => t.match(/Alice Byrne|Bob Kelly|Cara Nolan|Dan Ryan|Eve Walsh/)?.[0])).toEqual([
+            'Eve Walsh',
+            'Dan Ryan',
+            'Cara Nolan',
+            'Bob Kelly',
+            'Alice Byrne',
+        ]);
+
+        fireEvent.change(sortSelect, { target: { value: 'default' } });
+        expect(rowNames().map(t => t.match(/Alice Byrne|Bob Kelly|Cara Nolan|Dan Ryan|Eve Walsh/)?.[0])).toEqual([
+            'Alice Byrne',
+            'Bob Kelly',
+            'Cara Nolan',
+            'Dan Ryan',
+            'Eve Walsh',
+        ]);
+
+        // 2. Quick "To call" chip filters to uncalled people awaiting a reply (Cara, Dan, Eve)
+        const toCallBtn = screen.getByRole('button', { name: /To call/i });
+        fireEvent.click(toCallBtn);
+        expect(toCallBtn).toHaveAttribute('aria-pressed', 'true');
+        expect(screen.getByText('Cara Nolan')).toBeInTheDocument();
+        expect(screen.getByText('Dan Ryan')).toBeInTheDocument();
+        expect(screen.getByText('Eve Walsh')).toBeInTheDocument();
+        expect(screen.queryByText('Alice Byrne')).not.toBeInTheDocument();
+        expect(screen.queryByText('Bob Kelly')).not.toBeInTheDocument();
+        fireEvent.click(toCallBtn);
+        expect(screen.getByText('Alice Byrne')).toBeInTheDocument();
+
+        // 3. Mobile Filters bottom sheet applies Status filter and shows removable chip
+        const openFiltersBtn = screen.getByRole('button', { name: 'Open filters' });
+        fireEvent.click(openFiltersBtn);
+        const dialog = screen.getByRole('dialog');
+        fireEvent.click(within(dialog).getByRole('button', { name: /Pending/i }));
+        fireEvent.click(within(dialog).getByRole('button', { name: /Show 1 contact/i }));
+
+        expect(openFiltersBtn).toHaveTextContent('1');
+        expect(screen.getByText('Bob Kelly')).toBeInTheDocument();
+        expect(screen.queryByText('Alice Byrne')).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Remove Status filter' }));
+        expect(screen.getByText('Alice Byrne')).toBeInTheDocument();
+
+        // 4. Mobile row actions: Call dials via tel: + shows Just called without selecting row;
+        //    No answer saves call mark and clears Just called; Edit opens modal
+        const caraRow = screen.getByText('Cara Nolan').closest('tr')!;
+        const callLink = within(caraRow).getByRole('link', { name: 'Call Cara Nolan' });
+        expect(callLink).toHaveAttribute('href', 'tel:+353861234567');
+        fireEvent.click(callLink);
+        expect(screen.getByLabelText('Select Cara Nolan')).not.toBeChecked();
+        expect(within(caraRow).getByText('Just called')).toBeInTheDocument();
+
+        fireEvent.click(within(caraRow).getByRole('button', { name: 'Mark Cara Nolan no answer' }));
+        await waitFor(() => expect(mockDb.updateCalls).toHaveLength(1));
+        expect(mockDb.updateCalls[0]).toEqual({
+            table: 'outreach_contacts',
+            column: 'id',
+            value: 'c3',
+            payload: { called_no_answer_at: expect.any(String) },
+        });
+        expect(within(caraRow).queryByText('Just called')).not.toBeInTheDocument();
+
+        fireEvent.click(within(caraRow).getByRole('button', { name: 'Edit outcome for Cara Nolan' }));
+        expect(await screen.findByText('Edit Employment Status')).toBeInTheDocument();
+        expect(screen.getByLabelText('Select Cara Nolan')).not.toBeChecked();
+    });
 });

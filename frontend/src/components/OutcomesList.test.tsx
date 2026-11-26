@@ -638,4 +638,85 @@ describe('OutcomesList', () => {
             'Frank Flynn',
         ]);
     });
+
+    it('supports mobile Filters bottom sheet, quick To call chip, 1-tap Sort by, and Call/No answer/Edit row actions', async () => {
+        const updateEq = vi.fn().mockResolvedValue({ error: null });
+        const update = vi.fn().mockReturnValue({ eq: updateEq });
+        const upsert = vi.fn().mockResolvedValue({ error: null });
+        vi.mocked(supabase.from).mockReturnValue({ update, upsert } as never);
+
+        renderOutcomes();
+        await screen.findByText('Alice Adams');
+
+        // 1. Mobile 1-tap Sort by dropdown supports sorting by Completed, Updated, and Courses
+        const sortSelect = screen.getByLabelText('Sort by');
+        const rowNames = () => screen.getAllByRole('row').slice(1).map(r => r.textContent || '');
+
+        fireEvent.change(sortSelect, { target: { value: 'completed:desc' } });
+        expect(rowNames().map(t => t.match(/Alice Adams|Cara Collins|Brian Byrne|David Doyle|Eva Egan|Frank Flynn/)?.[0])).toEqual([
+            'Alice Adams',
+            'Cara Collins',
+            'Brian Byrne',
+            'David Doyle',
+            'Eva Egan',
+            'Frank Flynn',
+        ]);
+
+        fireEvent.change(sortSelect, { target: { value: 'updated:desc' } });
+        expect(rowNames().slice(0, 3).map(t => t.match(/Alice Adams|Cara Collins|Brian Byrne/)?.[0])).toEqual([
+            'Brian Byrne',
+            'Alice Adams',
+            'Cara Collins',
+        ]);
+
+        // 2. Quick "To call" chip filters to not-called people awaiting a reply (Cara, Eva, Frank)
+        //    and cleanly resolves conflicts when Working was active first
+        fireEvent.click(screen.getByRole('button', { name: /Currently working/i }));
+        expect(screen.getByText('1 of 6 graduates')).toBeInTheDocument();
+
+        const toCallBtn = screen.getByRole('button', { name: /To call/i });
+        fireEvent.click(toCallBtn);
+        expect(toCallBtn).toHaveAttribute('aria-pressed', 'true');
+        expect(screen.getByText('3 of 6 graduates')).toBeInTheDocument();
+        expect(screen.getByText('Cara Collins')).toBeInTheDocument();
+        expect(screen.getByText('Eva Egan')).toBeInTheDocument();
+        expect(screen.getByText('Frank Flynn')).toBeInTheDocument();
+        expect(screen.queryByText('David Doyle')).not.toBeInTheDocument();
+
+        // Tapping To call again turns it off
+        fireEvent.click(toCallBtn);
+        expect(toCallBtn).toHaveAttribute('aria-pressed', 'false');
+        expect(screen.getByText('6 of 6 graduates')).toBeInTheDocument();
+
+        // 3. Mobile Filters bottom sheet applies filters and renders removable chips
+        const openFiltersBtn = screen.getByRole('button', { name: 'Open filters' });
+        fireEvent.click(openFiltersBtn);
+        const dialog = screen.getByRole('dialog');
+        fireEvent.change(within(dialog).getByLabelText('Sheet course filter'), { target: { value: 'Safe Pass' } });
+        fireEvent.click(within(dialog).getByRole('button', { name: /Show 2 graduates/i }));
+
+        expect(openFiltersBtn).toHaveTextContent('1');
+        expect(screen.getByText('2 of 6 graduates')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Remove Course filter' }));
+        expect(screen.getByText('6 of 6 graduates')).toBeInTheDocument();
+
+        // 4. Mobile row actions: Call dials via tel: + marks Just called without selecting row;
+        //    No answer marks called_no_answer_at and clears Just called; Edit opens modal
+        const caraRow = screen.getByText('Cara Collins').closest('tr')!;
+        const callLink = within(caraRow).getByRole('link', { name: 'Call Cara Collins' });
+        expect(callLink).toHaveAttribute('href', 'tel:+353863334444');
+        fireEvent.click(callLink);
+        expect(screen.getByLabelText('Select Cara Collins')).not.toBeChecked();
+        expect(within(caraRow).getByText('Just called')).toBeInTheDocument();
+
+        fireEvent.click(within(caraRow).getByRole('button', { name: 'Mark Cara Collins no answer' }));
+        await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+        expect(updateEq).toHaveBeenCalledWith('student_id', 's3');
+        expect(screen.getByLabelText('Select Cara Collins')).not.toBeChecked();
+        expect(within(caraRow).queryByText('Just called')).not.toBeInTheDocument();
+
+        fireEvent.click(within(caraRow).getByRole('button', { name: 'Edit outcome for Cara Collins' }));
+        expect(await screen.findByText('Edit Employment Status')).toBeInTheDocument();
+        expect(screen.getByLabelText('Select Cara Collins')).not.toBeChecked();
+    });
 });

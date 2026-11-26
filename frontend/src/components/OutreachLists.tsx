@@ -38,6 +38,14 @@ import {
     restoreOutreachFromPending,
     snapshotOutreachForPending,
 } from '../lib/outcomeUndo';
+import {
+    MobileFiltersButton,
+    MobileQuickFilterStrip,
+    MobileRowActions,
+    MobileSortSelect,
+    OutcomeFiltersSheet,
+    type ActiveOutcomeFilter,
+} from './OutcomeMobileControls';
 
 type StatusFilter = 'all' | OutreachContact['status'];
 type EmploymentFilter = 'all' | 'working' | 'not_working';
@@ -123,8 +131,12 @@ export default function OutreachLists({ onOpenStudentByEmail }: OutreachListsPro
     const [confirmDeleteList, setConfirmDeleteList] = useState(false);
     const [editing, setEditing] = useState<OutreachContact | null>(null);
     const [newListName, setNewListName] = useState<string | null>(null);
+    const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+    // Highlights the row just dialed on a phone so it's easy to spot when returning from the dialer
+    const [lastDialedId, setLastDialedId] = useState<string | null>(null);
 
     const callsFilterApplicable = filterStatus !== 'responded' && filterEmployment !== 'working';
+    const isToCallActive = callsFilterApplicable && filterCall === 'not_called';
 
     // Auto-clear call filter when viewing only responded or working contacts
     useEffect(() => {
@@ -137,6 +149,7 @@ export default function OutreachLists({ onOpenStudentByEmail }: OutreachListsPro
     useEffect(() => {
         setSelectedIds(new Set());
         lastClickedIdRef.current = null;
+        setLastDialedId(null);
         setFilterStatus('all');
         setFilterEmployment('all');
         setFilterCall('all');
@@ -153,6 +166,48 @@ export default function OutreachLists({ onOpenStudentByEmail }: OutreachListsPro
         setFilterEmployment(next);
         if (next === 'working') setFilterCall('all');
         if (next !== 'all' && filterStatus === 'not_contacted') setFilterStatus('all');
+    }
+
+    function handleToggleToCall() {
+        if (isToCallActive) {
+            setFilterCall('all');
+            return;
+        }
+        if (filterStatus === 'responded') setFilterStatus('all');
+        if (filterEmployment === 'working') setFilterEmployment('all');
+        setFilterCall('not_called');
+    }
+
+    function clearSheetFilters() {
+        setFilterStatus('all');
+        setFilterEmployment('all');
+        setFilterCall('all');
+    }
+
+    const activeMobileFilters: ActiveOutcomeFilter[] = [];
+    if (filterStatus !== 'all') {
+        activeMobileFilters.push({
+            id: 'status',
+            label: 'Status',
+            value: filterStatus === 'not_contacted' ? 'Not Contacted' : filterStatus === 'pending' ? 'Pending' : 'Responded',
+            onRemove: () => handleSelectStatus('all'),
+        });
+    }
+    if (filterEmployment !== 'all') {
+        activeMobileFilters.push({
+            id: 'employment',
+            label: 'Employment',
+            value: filterEmployment === 'working' ? 'Working' : 'Not working',
+            onRemove: () => handleSelectEmployment('all'),
+        });
+    }
+    if (callsFilterApplicable && filterCall !== 'all') {
+        activeMobileFilters.push({
+            id: 'call',
+            label: 'Calls',
+            value: filterCall === 'called' ? 'No answer' : 'Not called yet',
+            onRemove: () => setFilterCall('all'),
+        });
     }
 
     // Stable object so the edit modal doesn't reset its form on every re-render
@@ -251,6 +306,7 @@ export default function OutreachLists({ onOpenStudentByEmail }: OutreachListsPro
 
     /** Sets or clears "called, no answer"; the list shows it at once and goes back if saving fails. */
     async function toggleCallMark(contact: OutreachContact) {
+        if (lastDialedId === contact.id) setLastDialedId(null);
         const calledAt = contact.called_no_answer_at ? null : new Date().toISOString();
         const patch = (value: string | null | undefined) => queryClient.setQueryData<OutreachContact[]>(['outreach_contacts', contact.list_id], old =>
             old?.map(c => c.id === contact.id ? { ...c, called_no_answer_at: value } : c));
@@ -484,7 +540,7 @@ export default function OutreachLists({ onOpenStudentByEmail }: OutreachListsPro
     }
 
     return (
-        <div className="space-y-4 pb-8">
+        <div className="space-y-3 md:space-y-4 pb-8">
             {/* List picker */}
             <div className="bg-surface rounded-2xl border border-border-subtle shadow-card p-3 sm:p-3.5 flex flex-wrap items-center gap-2 sm:gap-3">
                 <Users size={16} className="text-brand-500" />
@@ -550,43 +606,45 @@ export default function OutreachLists({ onOpenStudentByEmail }: OutreachListsPro
                         title={`Delete the list "${activeList.name}"`}
                         className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-muted hover:text-red-500 bg-surface-elevated border border-border-subtle hover:border-red-500/30 rounded-lg transition-all"
                     >
-                        <Trash2 size={12} /> Delete list
+                        <Trash2 size={12} /> <span className="hidden sm:inline">Delete list</span><span className="sm:hidden">Delete</span>
                     </button>
                 )}
 
-                <div className="flex items-center gap-2 ml-auto">
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 sm:ml-auto">
                     <button
                         onClick={handleExport}
                         disabled={exporting || filtered.length === 0}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-muted hover:text-primary bg-surface-elevated border border-border-subtle rounded-lg transition-all disabled:opacity-50"
+                        className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-muted hover:text-primary bg-surface-elevated border border-border-subtle rounded-lg transition-all disabled:opacity-50"
                     >
-                        {exporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} Export Excel
+                        {exporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} Export<span className="hidden sm:inline"> Excel</span>
                     </button>
                     <button
                         onClick={() => setShowAddContact(true)}
                         disabled={!activeList}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-muted hover:text-primary bg-surface-elevated border border-border-subtle rounded-lg transition-all disabled:opacity-50"
+                        className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-muted hover:text-primary bg-surface-elevated border border-border-subtle rounded-lg transition-all disabled:opacity-50"
                     >
-                        <UserPlus size={12} /> Add person
+                        <UserPlus size={12} /> Add<span className="hidden sm:inline"> person</span>
                     </button>
                     <button
                         onClick={() => setShowImport(true)}
                         disabled={!activeList}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-brand-600 hover:bg-brand-500 rounded-lg transition-all shadow-xs disabled:opacity-50"
+                        className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-white bg-brand-600 hover:bg-brand-500 rounded-lg transition-all shadow-xs disabled:opacity-50"
                     >
-                        <Upload size={12} /> Import from IRIS (Excel/CSV)
+                        <Upload size={12} /> Import<span className="hidden sm:inline"> from IRIS (Excel/CSV)</span>
                     </button>
                 </div>
             </div>
 
-            {/* Stats Row */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            {/* Stats Row: compact horizontal swipe strip on phones, 2x2 / 4-col grid on md+ */}
+            <div className="flex overflow-x-auto scrollbar-none snap-x snap-mandatory gap-2.5 -mx-1 px-1 pb-0.5 md:mx-0 md:px-0 md:pb-0 md:grid md:grid-cols-2 lg:grid-cols-4 md:gap-4 md:overflow-visible">
                 <StatTile
                     label="Contacts"
                     icon={Users}
                     tone="brand"
                     value={stats.total}
                     hint={stats.notContacted > 0 ? `${stats.notContacted} not contacted` : 'Everyone contacted'}
+                    compactMobile
+                    className="shrink-0 w-[148px] snap-start md:w-auto"
                     onClick={() => {
                         setFilterStatus('all');
                         setFilterEmployment('all');
@@ -599,6 +657,8 @@ export default function OutreachLists({ onOpenStudentByEmail }: OutreachListsPro
                     tone="completed"
                     value={stats.responseRate !== null ? `${stats.responseRate}%` : '—'}
                     hint={stats.asked > 0 ? `${stats.answered} of ${stats.asked} contacted` : 'No surveys sent yet'}
+                    compactMobile
+                    className="shrink-0 w-[148px] snap-start md:w-auto"
                     onClick={() => {
                         setFilterStatus('responded');
                         setFilterEmployment('all');
@@ -611,6 +671,8 @@ export default function OutreachLists({ onOpenStudentByEmail }: OutreachListsPro
                     tone="success"
                     value={stats.working}
                     hint={stats.employmentRate !== null ? `${stats.employmentRate}% of answered` : 'No answers yet'}
+                    compactMobile
+                    className="shrink-0 w-[148px] snap-start md:w-auto"
                     onClick={() => {
                         setFilterStatus('all');
                         setFilterEmployment('working');
@@ -629,6 +691,8 @@ export default function OutreachLists({ onOpenStudentByEmail }: OutreachListsPro
                                 ? `${stats.notContacted} not contacted`
                                 : undefined
                     }
+                    compactMobile
+                    className="shrink-0 w-[148px] snap-start md:w-auto"
                     onClick={() => {
                         setFilterStatus('pending');
                         setFilterEmployment('all');
@@ -636,27 +700,42 @@ export default function OutreachLists({ onOpenStudentByEmail }: OutreachListsPro
                 />
             </div>
 
-            {/* Toolbar */}
-            <div className="bg-surface rounded-2xl border border-border-subtle shadow-card p-3 sm:p-3.5 space-y-3">
-                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            {/* Toolbar: compact Search + Filters sheet on phones, always-visible full bar on md+ */}
+            <div className="bg-transparent md:bg-surface rounded-none md:rounded-2xl border-0 md:border md:border-border-subtle shadow-none md:shadow-card p-0 md:p-3.5 space-y-2 md:space-y-3">
+                <div className="flex items-center md:flex-wrap gap-2 md:gap-3">
                     <SearchInput
-                        wrapperClassName="flex-1 min-w-[200px]"
+                        wrapperClassName="flex-1 min-w-0 md:min-w-[200px]"
                         value={searchQuery}
                         onChange={setSearchQuery}
                         placeholder="Name, email, phone, IRIS ID, field…"
                         aria-label="Search contacts"
                     />
-                    <span className="text-xs text-muted font-medium">
+                    <MobileFiltersButton
+                        activeCount={activeMobileFilters.length}
+                        onClick={() => setFilterSheetOpen(true)}
+                    />
+                    <span className="hidden md:inline text-xs text-muted font-medium">
                         {filtered.length} of {contacts.length} contact{contacts.length !== 1 ? 's' : ''}
                     </span>
                 </div>
+
+                {/* Mobile quick "To call" toggle + active filter chips */}
+                <MobileQuickFilterStrip
+                    showToCall={callCounts.not_called > 0 || isToCallActive}
+                    toCallActive={isToCallActive}
+                    toCallCount={callCounts.not_called}
+                    onToggleToCall={handleToggleToCall}
+                    activeFilters={activeMobileFilters}
+                    onClearAll={clearSheetFilters}
+                />
+
                 {contacts.length > 0 && selectedIds.size === 0 && (
-                    <p className="text-xs text-muted flex items-center gap-1.5">
+                    <p className="hidden md:flex text-xs text-muted items-center gap-1.5">
                         <Mail size={12} className="shrink-0" />
                         Tick people in the list to email them the survey (Shift+click for a range). Click “Status” on a row to change it by hand.
                     </p>
                 )}
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <div className="hidden md:flex flex-wrap items-center gap-x-3 gap-y-2">
                     <div className="flex flex-wrap gap-1" role="group" aria-label="Status filter">
                         {STATUS_FILTERS.map(({ value, label }) => (
                             <button
@@ -694,11 +773,7 @@ export default function OutreachLists({ onOpenStudentByEmail }: OutreachListsPro
                     {(filterStatus !== 'all' || filterEmployment !== 'all' || filterCall !== 'all') && (
                         <button
                             type="button"
-                            onClick={() => {
-                                setFilterStatus('all');
-                                setFilterEmployment('all');
-                                setFilterCall('all');
-                            }}
+                            onClick={clearSheetFilters}
                             className="text-xs text-muted hover:text-primary flex items-center gap-1 transition-colors"
                         >
                             <X size={12} /> Clear filters
@@ -706,7 +781,7 @@ export default function OutreachLists({ onOpenStudentByEmail }: OutreachListsPro
                     )}
                 </div>
                 {callsFilterApplicable && callCounts.all > 0 && (
-                    <div className="flex flex-wrap gap-1" role="group" aria-label="Calls filter">
+                    <div className="hidden md:flex flex-wrap gap-1" role="group" aria-label="Calls filter">
                         {CALL_FILTERS.map(({ value, label }) => (
                             <button
                                 key={value}
@@ -763,7 +838,7 @@ export default function OutreachLists({ onOpenStudentByEmail }: OutreachListsPro
                         <table className="w-full text-sm">
                             <thead>
                                 <tr className="border-b border-border-subtle bg-surface-elevated/50">
-                                    <th className="py-3 px-4 text-left w-10">
+                                    <th className="py-2.5 sm:py-3 pl-3 pr-1.5 sm:px-4 text-left w-8 sm:w-10">
                                         <input
                                             type="checkbox"
                                             checked={filtered.length > 0 && filtered.every(c => selectedIds.has(c.id))}
@@ -772,18 +847,33 @@ export default function OutreachLists({ onOpenStudentByEmail }: OutreachListsPro
                                             className="rounded-sm border-border-strong text-brand-500 focus:ring-brand-500/50 cursor-pointer"
                                         />
                                     </th>
-                                    <SortHeader label="Contact" column="name" sort={sort} onSort={setSort} />
+                                    {/* Mobile header: compact count + 1-tap sort across all columns */}
+                                    <th className="sm:hidden py-2.5 pl-1.5 pr-3 text-left font-normal">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="text-xs font-medium text-muted tabular-nums whitespace-nowrap">
+                                                {filtered.length} / {contacts.length}
+                                            </span>
+                                            <MobileSortSelect
+                                                variant="lists"
+                                                sort={sort}
+                                                onChange={setSort}
+                                            />
+                                        </div>
+                                    </th>
+                                    <SortHeader label="Contact" column="name" sort={sort} onSort={setSort} className="hidden sm:table-cell" />
                                     <SortHeader label="IRIS ID" column="ref" sort={sort} onSort={setSort} className="hidden md:table-cell" />
                                     <SortHeader label="Tracking" column="tracking" sort={sort} onSort={setSort} className="hidden sm:table-cell" />
                                     <SortHeader label="Employment" column="employment" sort={sort} onSort={setSort} className="hidden sm:table-cell" />
                                     <SortHeader label="Updated" column="updated" sort={sort} onSort={setSort} className="hidden lg:table-cell" />
-                                    <th className="py-3 px-4 text-right text-xs font-semibold text-muted uppercase tracking-wider"><span className="sr-only sm:not-sr-only">Actions</span></th>
+                                    <th className="hidden sm:table-cell py-3 px-4 text-right text-xs font-semibold text-muted uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {visibleContacts.map(contact => {
                                     const isSelected = selectedIds.has(contact.id);
+                                    const isJustDialed = lastDialedId === contact.id;
                                     const isOptedOut = optedOutSet.has(normalizeEmail(contact.email));
+                                    const displayName = fullName(contact) || contact.email || 'contact';
                                     const initials = `${contact.first_name?.[0] || contact.email?.[0] || ''}${contact.last_name?.[0] || ''}`.toUpperCase();
                                     return (
                                         <tr
@@ -793,24 +883,28 @@ export default function OutreachLists({ onOpenStudentByEmail }: OutreachListsPro
                                                 toggleSelect(contact.id, e.shiftKey);
                                             }}
                                             className={`border-b border-border-subtle/50 transition-colors cursor-pointer ${
-                                                isSelected ? 'bg-brand-500/5' : 'hover:bg-surface-elevated/50'
+                                                isSelected
+                                                    ? 'bg-brand-500/5'
+                                                    : isJustDialed
+                                                        ? 'bg-emerald-500/5 sm:bg-transparent hover:bg-surface-elevated/50'
+                                                        : 'hover:bg-surface-elevated/50'
                                             }`}
                                         >
-                                            <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
+                                            <td className="py-3 pl-3 pr-1.5 sm:px-4 align-top sm:align-middle" onClick={e => e.stopPropagation()}>
                                                 <input
                                                     type="checkbox"
                                                     checked={isSelected}
                                                     onChange={e => toggleSelect(contact.id, Boolean((e.nativeEvent as MouseEvent).shiftKey))}
                                                     aria-label={`Select ${fullName(contact) || contact.email || 'contact'}`}
-                                                    className="rounded-sm border-border-strong text-brand-500 focus:ring-brand-500/50 cursor-pointer"
+                                                    className="mt-1.5 sm:mt-0 rounded-sm border-border-strong text-brand-500 focus:ring-brand-500/50 cursor-pointer"
                                                 />
                                             </td>
-                                            <td className="py-3 px-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-8 h-8 bg-linear-to-br ${getAvatarGradient(contact.id)} rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0`}>
+                                            <td className="py-3 pl-1.5 pr-3 sm:px-4">
+                                                <div className="flex items-start sm:items-center gap-2.5 sm:gap-3">
+                                                    <div className={`w-8 h-8 bg-linear-to-br ${getAvatarGradient(contact.id)} rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5 sm:mt-0`}>
                                                         {initials}
                                                     </div>
-                                                    <div className="min-w-0 max-w-[calc(100vw-13rem)] sm:max-w-none">
+                                                    <div className="min-w-0 flex-1">
                                                         <div className="font-semibold text-primary text-[13px] flex items-center gap-1.5 min-w-0">
                                                             <span className="truncate">{fullName(contact) || '—'}</span>
                                                             {contact.in_crm && (
@@ -835,6 +929,11 @@ export default function OutreachLists({ onOpenStudentByEmail }: OutreachListsPro
                                                                     </span>
                                                                 )
                                                             )}
+                                                            {isJustDialed && (
+                                                                <span className="sm:hidden shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                                                                    Just called
+                                                                </span>
+                                                            )}
                                                         </div>
                                                         {contact.email && (
                                                             <p className="text-xs text-muted truncate">{contact.email}</p>
@@ -845,16 +944,50 @@ export default function OutreachLists({ onOpenStudentByEmail }: OutreachListsPro
                                                                 <EmailStatusBadges email={contact.email} optedOut={isOptedOut} />
                                                             </div>
                                                         )}
-                                                        {/* Phones: the status columns are hidden, so their badges go under the name */}
-                                                        <div className="sm:hidden mt-1 flex flex-wrap items-center gap-1.5">
+                                                        {/* Phones (< sm): IRIS ID + updated / sent dates */}
+                                                        {(contact.external_ref || contact.last_responded_at || (contact.status === 'pending' && contact.last_invited_at)) && (
+                                                            <div className="sm:hidden mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                                                                {contact.external_ref && (
+                                                                    <span className={`text-[11px] font-mono px-2 py-0.5 rounded-full bg-surface-elevated border border-border-subtle ${sort?.key === 'ref' ? 'text-primary font-semibold' : 'text-muted'}`}>
+                                                                        {contact.external_ref}
+                                                                    </span>
+                                                                )}
+                                                                {contact.last_responded_at && (
+                                                                    <span className={`text-[11px] tabular-nums ${sort?.key === 'updated' ? 'text-primary font-medium' : 'text-muted'}`}>
+                                                                        Updated {formatDisplayDate(contact.last_responded_at)}
+                                                                    </span>
+                                                                )}
+                                                                {contact.status === 'pending' && contact.last_invited_at && (
+                                                                    <span className="text-[11px] text-muted tabular-nums">
+                                                                        Sent {formatDisplayDate(contact.last_invited_at)}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                        {/* Phones (< sm): status & employment badges */}
+                                                        <div className="sm:hidden mt-1.5 flex flex-wrap items-center gap-1.5">
                                                             <TrackingBadge status={contact.status} />
                                                             {(contact.status === 'responded' || contact.is_working !== null) && (
                                                                 <EmploymentBadge status={contact.status} row={contact} />
                                                             )}
-                                                            <CallMarkButton status={contact.status} calledAt={contact.called_no_answer_at} busy={callBusy.has(contact.id)} onToggle={() => toggleCallMark(contact)} name={fullName(contact) || contact.email} />
                                                         </div>
                                                     </div>
                                                 </div>
+
+                                                {/* Phones (< sm): thumb-friendly Call / No answer / Edit action bar */}
+                                                <MobileRowActions
+                                                    name={displayName}
+                                                    phone={contact.phone}
+                                                    status={contact.status}
+                                                    calledAt={contact.called_no_answer_at}
+                                                    callBusy={callBusy.has(contact.id)}
+                                                    onDial={() => setLastDialedId(contact.id)}
+                                                    onToggleNoAnswer={() => { void toggleCallMark(contact); }}
+                                                    onEdit={() => {
+                                                        if (lastDialedId === contact.id) setLastDialedId(null);
+                                                        setEditing(contact);
+                                                    }}
+                                                />
                                             </td>
                                             <td className="py-3 px-4 hidden md:table-cell">
                                                 <span className="text-xs text-muted">{contact.external_ref || '—'}</span>
@@ -881,7 +1014,7 @@ export default function OutreachLists({ onOpenStudentByEmail }: OutreachListsPro
                                                     {contact.last_responded_at ? formatDisplayDate(contact.last_responded_at) : '—'}
                                                 </span>
                                             </td>
-                                            <td className="py-3 px-4 text-right">
+                                            <td className="hidden sm:table-cell py-3 px-4 text-right">
                                                 <button
                                                     onClick={e => { e.stopPropagation(); setEditing(contact); }}
                                                     className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-muted hover:text-brand-500 bg-surface-elevated/60 hover:bg-surface-elevated border border-border-subtle rounded-lg transition-colors"
@@ -903,6 +1036,27 @@ export default function OutreachLists({ onOpenStudentByEmail }: OutreachListsPro
                     </div>
                 )}
             </div>
+
+            <OutcomeFiltersSheet
+                open={filterSheetOpen}
+                onClose={() => setFilterSheetOpen(false)}
+                filteredCount={filtered.length}
+                totalCount={contacts.length}
+                noun="contact"
+                activeFilterCount={activeMobileFilters.length}
+                onClearAll={clearSheetFilters}
+                filterStatus={filterStatus}
+                onSelectStatus={handleSelectStatus}
+                statusCounts={statusCounts}
+                filterEmployment={filterEmployment}
+                onSelectEmployment={handleSelectEmployment}
+                workingCount={employmentCounts.working}
+                notWorkingCount={employmentCounts.not_working}
+                callsApplicable={callsFilterApplicable}
+                filterCall={filterCall}
+                onSelectCall={setFilterCall}
+                callCounts={callCounts}
+            />
 
             {/* Bulk Action Bar */}
             <OutcomeBulkBar
